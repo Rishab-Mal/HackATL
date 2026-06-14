@@ -1,16 +1,25 @@
 import { useEffect, useState } from 'react'
-import { getLots } from '../api.js'
+import { getLotFilterOptions, getLots } from '../api.js'
+import LotFilters from '../components/LotFilters.jsx'
 
 // Person 3 (frontend) owns this screen. Person 2 (backend / lots / factory
 // records) owns the /api/lots response shape -- see backend/app/schemas.py: LotOut.
 
+const EMPTY_FILTERS = { fabric_type: '', color_name: '', min_price: '', max_price: '' }
+
 export default function SortedLots() {
   const [lots, setLots] = useState([])
+  const [options, setOptions] = useState(null)
+  const [filters, setFilters] = useState(EMPTY_FILTERS)
   const [error, setError] = useState(null)
 
   useEffect(() => {
-    getLots().then(setLots).catch((err) => setError(err.message))
+    getLotFilterOptions().then(setOptions).catch((err) => setError(err.message))
   }, [])
+
+  useEffect(() => {
+    getLots(filters).then(setLots).catch((err) => setError(err.message))
+  }, [filters])
 
   return (
     <div className="page">
@@ -20,6 +29,12 @@ export default function SortedLots() {
       </p>
 
       {error && <div className="error">{error}</div>}
+
+      <LotFilters options={options} filters={filters} onChange={setFilters} />
+
+      <p className="muted result-count">
+        {lots.length} lot{lots.length === 1 ? '' : 's'}
+      </p>
 
       <div className="lot-grid">
         {lots.map((lot) => (
@@ -46,7 +61,7 @@ export default function SortedLots() {
             </div>
           </div>
         ))}
-        {lots.length === 0 && !error && <p className="muted">No lots yet.</p>}
+        {lots.length === 0 && !error && <p className="muted">No lots match these filters.</p>}
       </div>
     </div>
   )

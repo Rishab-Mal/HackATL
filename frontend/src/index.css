@@ -127,6 +127,54 @@ h1 {
   pointer-events: none;
 }
 
+/* Filter bar */
+
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 1rem;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.filter-bar label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.filter-bar select,
+.filter-bar input {
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+
+.filter-bar input[type='number'] {
+  width: 100px;
+}
+
+.filter-bar .clear-filters {
+  background: var(--border);
+  color: var(--text);
+  align-self: stretch;
+}
+
+.filter-bar .clear-filters:hover {
+  background: #d4d8de;
+}
+
+.result-count {
+  margin-bottom: 0.75rem;
+}
+
 .group-grid,
 .lot-grid,
 .buyer-grid {
@@ -291,13 +339,21 @@ button:hover:not(:disabled) {
 .claim-row {
   display: flex;
   gap: 0.5rem;
+  min-width: 0;
 }
 
 .claim-row select {
   flex: 1;
+  min-width: 0;
+  max-width: 100%;
   padding: 0.4rem;
   border: 1px solid var(--border);
   border-radius: 6px;
+  text-overflow: ellipsis;
+}
+
+.claim-row button {
+  flex-shrink: 0;
 }
 
 .buyer-type {

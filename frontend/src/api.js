@@ -39,9 +39,19 @@ export function createFactoryRecord(record) {
   })
 }
 
-export function getLots(status) {
-  const query = status ? `?status=${encodeURIComponent(status)}` : ''
-  return request(`/lots${query}`)
+export function getLots(filters = {}) {
+  const params = new URLSearchParams()
+  for (const [key, value] of Object.entries(filters)) {
+    if (value !== undefined && value !== null && value !== '') {
+      params.set(key, value)
+    }
+  }
+  const query = params.toString()
+  return request(`/lots${query ? `?${query}` : ''}`)
+}
+
+export function getLotFilterOptions() {
+  return request('/lots/filters')
 }
 
 export function createLot(lot) {

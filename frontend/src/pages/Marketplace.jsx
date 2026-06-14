@@ -1,28 +1,37 @@
 import { useEffect, useState } from 'react'
-import { claimLot, getBuyers, getLots } from '../api.js'
+import { claimLot, getBuyers, getLotFilterOptions, getLots } from '../api.js'
+import LotFilters from '../components/LotFilters.jsx'
 
 // Person 3 (frontend) owns this screen. Person 4 (marketplace, impact logic,
 // demo data) owns buyer profiles and the lot-claiming flow.
 
+const EMPTY_FILTERS = { fabric_type: '', color_name: '', min_price: '', max_price: '' }
+
 export default function Marketplace() {
   const [lots, setLots] = useState([])
   const [buyers, setBuyers] = useState([])
+  const [options, setOptions] = useState(null)
+  const [filters, setFilters] = useState(EMPTY_FILTERS)
   const [error, setError] = useState(null)
   const [selectedBuyer, setSelectedBuyer] = useState({})
 
-  function refresh() {
-    getLots('available').then(setLots).catch((err) => setError(err.message))
+  useEffect(() => {
+    getLotFilterOptions().then(setOptions).catch((err) => setError(err.message))
     getBuyers().then(setBuyers).catch((err) => setError(err.message))
+  }, [])
+
+  function refreshLots() {
+    getLots({ status: 'available', ...filters }).then(setLots).catch((err) => setError(err.message))
   }
 
-  useEffect(refresh, [])
+  useEffect(refreshLots, [filters])
 
   async function handleClaim(lotId) {
     const buyerName = selectedBuyer[lotId]
     if (!buyerName) return
     try {
       await claimLot(lotId, buyerName)
-      refresh()
+      refreshLots()
     } catch (err) {
       setError(err.message)
     }
@@ -36,6 +45,12 @@ export default function Marketplace() {
       {error && <div className="error">{error}</div>}
 
       <h2>Available lots</h2>
+      <LotFilters options={options} filters={filters} onChange={setFilters} />
+
+      <p className="muted result-count">
+        {lots.length} lot{lots.length === 1 ? '' : 's'} available
+      </p>
+
       <div className="lot-grid">
         {lots.map((lot) => (
           <div className="lot-card" key={lot.id}>
@@ -65,7 +80,7 @@ export default function Marketplace() {
             </div>
           </div>
         ))}
-        {lots.length === 0 && !error && <p className="muted">No available lots right now.</p>}
+        {lots.length === 0 && !error && <p className="muted">No available lots match these filters.</p>}
       </div>
 
       <h2>Recyclers &amp; makers</h2>
