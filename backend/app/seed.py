@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 
 from . import models
 from .constants import CARBON_PER_KG, WATER_PER_KG
+from .pricing import calculate_base_price
 from .vision.colors import PALETTE, rgb_to_hex
 
 RANDOM_SEED = 42
@@ -178,8 +179,14 @@ def _make_lots(rng: random.Random, factory_records, buyers):
 
         piece_count = rng.randint(5, 60)
         weight_kg = round(rng.uniform(0.5, 15.0), 1)
-        price_usd = round(weight_kg * rng.uniform(2.5, 6.0), 2)
-
+        price_usd = calculate_base_price(
+            fabric_type=factory_record.fabric_type,
+            composition=factory_record.composition,
+            color_name=color_name,
+            weight_kg=weight_kg,
+            piece_count=piece_count,
+        )
+        days_ago = rng.randint(0, 45)
         is_claimed = rng.random() < 0.3
         claimed_at = datetime.utcnow() - timedelta(minutes=rng.randint(1, 60 * 24 * 7)) if is_claimed else None
 
@@ -199,6 +206,7 @@ def _make_lots(rng: random.Random, factory_records, buyers):
                 claimed_by=rng.choice(buyer_names) if is_claimed else None,
                 claimed_at=claimed_at,
                 factory_record_id=factory_record.id,
+                created_at=datetime.utcnow() - timedelta(days=days_ago),
             )
         )
     return lots

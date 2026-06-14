@@ -82,7 +82,10 @@ class LotOut(BaseModel):
     color_hex: str
     piece_count: int
     weight_kg: float
-    price_usd: float
+    price_usd: float          # base price at time of listing
+    current_price_usd: float  # price after decay (computed, not stored)
+    price_decay_pct: int      # % dropped from base (0–65)
+    days_listed: int          # days since created
     carbon_saved_kg: float
     water_saved_l: float
     status: str

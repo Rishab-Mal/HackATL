@@ -12,8 +12,35 @@ from sqlalchemy.orm import Session
 from .. import models, schemas
 from ..constants import CARBON_PER_KG, WATER_PER_KG
 from ..database import get_db
+from ..pricing import calculate_base_price, current_price, decay_pct, days_listed
 
 router = APIRouter(prefix="/api/lots", tags=["lots"])
+
+
+def _enrich(lot: models.Lot) -> schemas.LotOut:
+    """Convert a Lot ORM object to LotOut, injecting computed price/decay fields."""
+    return schemas.LotOut(
+        id=lot.id,
+        name=lot.name,
+        description=lot.description,
+        fabric_type=lot.fabric_type,
+        composition=lot.composition,
+        color_name=lot.color_name,
+        color_hex=lot.color_hex,
+        piece_count=lot.piece_count,
+        weight_kg=lot.weight_kg,
+        price_usd=lot.price_usd,
+        current_price_usd=current_price(lot.price_usd, lot.created_at),
+        price_decay_pct=decay_pct(lot.price_usd, lot.created_at),
+        days_listed=days_listed(lot.created_at),
+        carbon_saved_kg=lot.carbon_saved_kg,
+        water_saved_l=lot.water_saved_l,
+        status=lot.status,
+        claimed_by=lot.claimed_by,
+        claimed_at=lot.claimed_at,
+        factory_record_id=lot.factory_record_id,
+        created_at=lot.created_at,
+    )
 
 
 @router.post("", response_model=schemas.LotOut)
@@ -21,15 +48,23 @@ def create_lot(lot: schemas.LotCreate, db: Session = Depends(get_db)):
     if lot.factory_record_id is not None and not db.get(models.FactoryRecord, lot.factory_record_id):
         raise HTTPException(status_code=404, detail="Factory record not found")
 
+    base_price = lot.price_usd if lot.price_usd > 0 else calculate_base_price(
+        fabric_type=lot.fabric_type,
+        composition=lot.composition,
+        color_name=lot.color_name,
+        weight_kg=lot.weight_kg,
+        piece_count=lot.piece_count,
+    )
+
     db_lot = models.Lot(
-        **lot.model_dump(),
+        **{**lot.model_dump(), "price_usd": base_price},
         carbon_saved_kg=round(lot.weight_kg * CARBON_PER_KG, 2),
         water_saved_l=round(lot.weight_kg * WATER_PER_KG, 2),
     )
     db.add(db_lot)
     db.commit()
     db.refresh(db_lot)
-    return db_lot
+    return _enrich(db_lot)
 
 
 @router.get("/filters", response_model=schemas.LotFilterOptions)
@@ -77,7 +112,7 @@ def list_lots(
         query = query.filter(models.Lot.price_usd >= min_price)
     if max_price is not None:
         query = query.filter(models.Lot.price_usd <= max_price)
-    return query.order_by(models.Lot.created_at.desc()).all()
+    return [_enrich(lot) for lot in query.order_by(models.Lot.created_at.desc()).all()]
 
 
 @router.get("/{lot_id}", response_model=schemas.LotOut)
@@ -85,7 +120,7 @@ def get_lot(lot_id: int, db: Session = Depends(get_db)):
     lot = db.get(models.Lot, lot_id)
     if not lot:
         raise HTTPException(status_code=404, detail="Lot not found")
-    return lot
+    return _enrich(lot)
 
 
 @router.post("/{lot_id}/claim", response_model=schemas.LotOut)
@@ -101,4 +136,4 @@ def claim_lot(lot_id: int, claim: schemas.LotClaim, db: Session = Depends(get_db
     lot.claimed_at = datetime.utcnow()
     db.commit()
     db.refresh(lot)
-    return lot
+    return _enrich(lot)
