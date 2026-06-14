@@ -329,13 +329,21 @@ button:hover:not(:disabled) {
 .claim-row {
   display: flex;
   gap: 0.5rem;
+  min-width: 0;
 }
 
 .claim-row select {
   flex: 1;
+  min-width: 0;
+  max-width: 100%;
   padding: 0.4rem;
   border: 1px solid var(--border);
   border-radius: 6px;
+  text-overflow: ellipsis;
+}
+
+.claim-row button {
+  flex-shrink: 0;
 }
 
 .buyer-type {
