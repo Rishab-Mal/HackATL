@@ -5,7 +5,10 @@
 const BASE = '/api'
 
 async function request(path, options = {}) {
-  const res = await fetch(`${BASE}${path}`, options)
+  const token = localStorage.getItem('scrap_token')
+  const headers = { ...(options.headers || {}) }
+  if (token) headers['Authorization'] = `Bearer ${token}`
+  const res = await fetch(`${BASE}${path}`, { ...options, headers })
   if (!res.ok) {
     const text = await res.text()
     throw new Error(`${res.status}: ${text}`)
