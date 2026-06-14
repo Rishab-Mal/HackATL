@@ -1,5 +1,6 @@
 import { Routes, Route } from 'react-router-dom'
 import Nav from './components/Nav.jsx'
+import ChatBot from './components/ChatBot.jsx'
 import Capture from './pages/Capture.jsx'
 import SortedLots from './pages/SortedLots.jsx'
 import Marketplace from './pages/Marketplace.jsx'
@@ -17,6 +18,7 @@ export default function App() {
           <Route path="/dashboard" element={<Dashboard />} />
         </Routes>
       </main>
+      <ChatBot />
     </div>
   )
 }
