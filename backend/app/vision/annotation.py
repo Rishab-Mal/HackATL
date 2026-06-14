@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import base64
+from collections import Counter, defaultdict
 from io import BytesIO
 import string
 
 import cv2
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
+
+from .colors import color_family as normalized_color_family
 
 
 GROUP_COLORS = [
@@ -28,27 +31,22 @@ GROUP_COLORS = [
 def assign_sort_groups(pieces):
     groups_by_key = {}
     ordered_groups = []
+    material_consensus = _material_consensus_by_color(pieces)
 
     for piece in pieces:
-        size_bucket = "small" if piece["size_label"] == "small" else "bulk"
         color_family = _sort_color_family(piece)
         fabric_type = piece.get("fabric_type_guess", "unknown textile")
         material_family = piece.get("material_family") or _fallback_material_family(fabric_type)
-        pattern = piece.get("pattern_type") or "solid"
-        key = (
-            fabric_type,
-            material_family,
-            piece.get("weave_or_knit") or "unknown",
-            color_family,
-            pattern,
-            size_bucket,
-        )
+        material_sort_family = material_consensus.get(color_family) or _sort_material_family(piece)
+        pattern = _sort_pattern(piece)
+        key = (color_family, material_sort_family, pattern)
         if key not in groups_by_key:
             group_id = _group_id(len(ordered_groups))
             group = {
                 "sort_group_id": group_id,
                 "fabric_type_guess": fabric_type,
                 "material_family": material_family,
+                "material_sort_family": material_sort_family,
                 "weave_or_knit": piece.get("weave_or_knit") or "unknown",
                 "composition_guess": piece.get("composition_guess", "mixed textile"),
                 "color_name": piece["color_name"],
@@ -61,6 +59,10 @@ def assign_sort_groups(pieces):
                 "estimated_weight_g": 0.0,
                 "_size_labels": [],
                 "_piece_ids": [],
+                "_fabric_types": [],
+                "_material_families": [],
+                "_structures": [],
+                "_compositions": [],
             }
             groups_by_key[key] = group
             ordered_groups.append(group)
@@ -69,16 +71,29 @@ def assign_sort_groups(pieces):
         piece["sort_group_id"] = group["sort_group_id"]
         piece["outline_color"] = group["outline_color"]
         piece["color_family"] = color_family
+        piece["material_sort_family"] = material_sort_family
         group["piece_count"] += 1
         group["total_size_percent"] += piece["size_percent"]
         group["estimated_weight_g"] += piece.get("estimated_weight_g") or 0.0
         group["_size_labels"].append(piece["size_label"])
         group["_piece_ids"].append(piece["id"])
+        group["_fabric_types"].append(fabric_type)
+        group["_material_families"].append(material_family)
+        group["_structures"].append(piece.get("weave_or_knit") or "unknown")
+        group["_compositions"].append(piece.get("composition_guess", "mixed textile"))
 
     groups = []
     for group in ordered_groups:
         labels = group.pop("_size_labels")
         piece_ids = group.pop("_piece_ids")
+        fabric_types = group.pop("_fabric_types")
+        material_families = group.pop("_material_families")
+        structures = group.pop("_structures")
+        compositions = group.pop("_compositions")
+        group["fabric_type_guess"] = _most_common(fabric_types, group["fabric_type_guess"])
+        group["material_family"] = _most_common(material_families, group["material_family"])
+        group["weave_or_knit"] = _most_common(structures, group["weave_or_knit"])
+        group["composition_guess"] = _most_common(compositions, group["composition_guess"])
         avg_size = max(set(labels), key=labels.count) if labels else "medium"
         group["avg_size_label"] = avg_size
         group["total_size_percent"] = round(group["total_size_percent"], 2)
@@ -210,15 +225,76 @@ def _hex_to_rgba(hex_color, alpha):
 
 
 def _sort_color_family(piece):
+    explicit = piece.get("color_family")
+    if explicit:
+        return explicit
     pattern = piece.get("pattern_type") or "solid"
-    if pattern in {"floral", "checkered", "striped", "print", "mixed"}:
+    if pattern in {"floral", "checkered", "striped"}:
         names = [piece.get("color_name")]
         names.extend(c.get("name") for c in piece.get("secondary_colors", [])[:2] if c.get("name"))
         names = [name for name in names if name]
         if names:
             return f"{pattern} " + "/".join(dict.fromkeys(names))
         return pattern
-    return piece.get("color_name", "mixed")
+    return normalized_color_family(
+        rgb=piece.get("dominant_rgb"),
+        name=piece.get("color_name", "mixed"),
+        clusters=piece.get("color_clusters"),
+    )
+
+
+def _sort_pattern(piece):
+    pattern = piece.get("pattern_type") or "solid"
+    if pattern in {"print", "mixed"}:
+        return "solid"
+    return pattern
+
+
+def _material_consensus_by_color(pieces):
+    by_color = defaultdict(list)
+    for piece in pieces:
+        by_color[_sort_color_family(piece)].append(_sort_material_family(piece))
+
+    consensus = {}
+    for family, material_families in by_color.items():
+        if len(material_families) < 3:
+            continue
+        material, count = Counter(material_families).most_common(1)[0]
+        if count >= 2:
+            consensus[family] = material
+    return consensus
+
+
+def _sort_material_family(piece):
+    fabric = (piece.get("fabric_type_guess") or "").lower()
+    material = (piece.get("material_family") or "").lower()
+    structure = (piece.get("weave_or_knit") or "").lower()
+    color = piece.get("color_family") or normalized_color_family(
+        rgb=piece.get("dominant_rgb"),
+        name=piece.get("color_name", ""),
+        clusters=piece.get("color_clusters"),
+    )
+
+    if "denim" in fabric or "denim" in material or "denim" in structure:
+        return "denim"
+    if "fleece" in fabric or "fleece" in structure:
+        return "fleece"
+    if "knit" in fabric or "jersey" in fabric or "rib" in fabric or "knit" in structure:
+        if color in {"red", "black"}:
+            return "fleece"
+        return "knit"
+    if "woven" in fabric or "woven" in structure or "cotton" in material:
+        return "woven"
+    if "poly" in material:
+        return "synthetic"
+    return "textile"
+
+
+def _most_common(values, default):
+    cleaned = [value for value in values if value]
+    if not cleaned:
+        return default
+    return Counter(cleaned).most_common(1)[0][0]
 
 
 def _group_descriptor(group):

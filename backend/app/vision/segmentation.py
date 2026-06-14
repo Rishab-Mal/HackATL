@@ -15,7 +15,7 @@ from PIL import Image, ImageOps
 
 from ..config import get_settings
 from .annotation import assign_sort_groups, piece_table, render_annotated_image
-from .colors import closest_color_name, color_clusters, dominant_color_rgb, pattern_type, rgb_to_hex
+from .colors import color_family, closest_color_name, color_clusters, dominant_color_rgb, pattern_type, rgb_to_hex
 from .material_llm import classify_materials
 from .measurement import (
     area_cm2_from_contour,
@@ -35,7 +35,7 @@ MAX_AREA_FRACTION = 0.45
 
 def detect_pieces(image_bytes: bytes) -> dict:
     settings = get_settings()
-    image_bgr = _decode_image(image_bytes, settings.max_image_dimension)
+    image_bgr, original_bgr, original_to_work_scale = _decode_image(image_bytes, settings.max_image_dimension)
     h, w = image_bgr.shape[:2]
     total_area = h * w
     warnings = []
@@ -44,6 +44,8 @@ def detect_pieces(image_bytes: bytes) -> dict:
         image_bgr,
         marker_size_cm=settings.aruco_marker_size_cm,
         marker_id=settings.aruco_marker_id,
+        original_image_bgr=original_bgr,
+        original_to_work_scale=original_to_work_scale,
     )
 
     try:
@@ -84,6 +86,7 @@ def detect_pieces(image_bytes: bytes) -> dict:
             dominant_rgb = dominant_color_rgb(image_bgr, mask)
             dominant_name = closest_color_name(dominant_rgb)
             dominant_hex = rgb_to_hex(dominant_rgb)
+        family = color_family(rgb=dominant_rgb, name=dominant_name, clusters=clusters)
         area_cm2 = area_cm2_from_contour(contour, scale["homography"], scale["px_per_cm"])
         area_cm2 = round(area_cm2, 1) if area_cm2 is not None else None
         aspect_ratio = round(max(bw / max(1, bh), bh / max(1, bw)), 2)
@@ -100,6 +103,7 @@ def detect_pieces(image_bytes: bytes) -> dict:
                 "color_name": dominant_name,
                 "color_hex": dominant_hex,
                 "dominant_rgb": [int(c) for c in dominant_rgb],
+                "color_family": family,
                 "secondary_colors": clusters[1:],
                 "color_clusters": clusters,
                 "pattern_type": pattern,
@@ -147,6 +151,8 @@ def detect_pieces(image_bytes: bytes) -> dict:
         )
     elif scale["scale_method"] == "ruler":
         warnings.append("ArUco marker was not decoded, so the visible 0-5 cm ruler was used for scale.")
+    elif scale["scale_method"] == "marker_like":
+        warnings.append("ArUco marker was not decoded; a strict marker-like square fallback was used for scale.")
 
     if any(obj.get("type") == "marker_like" for obj in scale["reference_objects"]) and scale["scale_method"] != "aruco":
         warnings.append("A marker-like square was excluded from fabric masks but could not be decoded as a trusted ArUco marker.")
@@ -176,10 +182,12 @@ def _decode_image(image_bytes: bytes, max_dimension: int):
     image = ImageOps.exif_transpose(image).convert("RGB")
     w, h = image.size
     scale = min(1.0, max_dimension / max(w, h))
+    original_rgb = np.array(image)
+    original_bgr = cv2.cvtColor(original_rgb, cv2.COLOR_RGB2BGR)
     if scale < 1.0:
         image = image.resize((int(w * scale), int(h * scale)), Image.Resampling.LANCZOS)
     rgb = np.array(image)
-    return cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
+    return cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR), original_bgr, scale
 
 
 def _clean_masks(raw_masks, image_bgr, exclusion_mask, max_pieces):

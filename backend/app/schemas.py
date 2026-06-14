@@ -30,6 +30,7 @@ class Piece(BaseModel):
     aspect_ratio: Optional[float] = None
     fabric_type_guess: Optional[str] = None
     material_family: Optional[str] = None
+    material_sort_family: Optional[str] = None
     weave_or_knit: Optional[str] = None
     composition_guess: Optional[str] = None
     fabric_confidence: Optional[str] = None
@@ -52,6 +53,7 @@ class ColorGroup(BaseModel):
     outline_color: Optional[str] = None
     fabric_type_guess: Optional[str] = None
     material_family: Optional[str] = None
+    material_sort_family: Optional[str] = None
     weave_or_knit: Optional[str] = None
     composition_guess: Optional[str] = None
     color_family: Optional[str] = None
