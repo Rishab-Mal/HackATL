@@ -15,14 +15,15 @@ from datetime import datetime, timedelta
 
 from sqlalchemy.orm import Session
 
-from passlib.context import CryptContext
+import hashlib
 
 from . import models
 from .constants import CARBON_PER_KG, WATER_PER_KG
 from .pricing import calculate_base_price
 from .vision.colors import PALETTE, rgb_to_hex
 
-_pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
+def _hash(pw: str) -> str:
+    return hashlib.sha256(pw.encode()).hexdigest()
 
 RANDOM_SEED = 42
 NUM_FACTORY_RECORDS = 14
@@ -53,9 +54,9 @@ def seed_data(db: Session) -> None:
 
     # Demo portal users
     demo_users = [
-        models.User(email="factory@demo.com", password_hash=_pwd_ctx.hash("factory123"), role="factory", name="Factory Worker"),
-        models.User(email="admin@demo.com",   password_hash=_pwd_ctx.hash("admin123"),   role="admin",   name="Admin"),
-        models.User(email="buyer@demo.com",   password_hash=_pwd_ctx.hash("buyer123"),   role="buyer",   name="Buyer"),
+        models.User(email="factory@demo.com", password_hash=_hash("factory123"), role="factory", name="Factory Worker"),
+        models.User(email="admin@demo.com",   password_hash=_hash("admin123"),   role="admin",   name="Admin"),
+        models.User(email="buyer@demo.com",   password_hash=_hash("buyer123"),   role="buyer",   name="Buyer"),
     ]
     db.add_all(demo_users)
     db.commit()

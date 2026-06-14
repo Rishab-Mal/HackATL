@@ -4,9 +4,10 @@ import os
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status
+import hashlib
+
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -19,8 +20,15 @@ SECRET_KEY = os.getenv("SECRET_KEY", "scrap-sorter-dev-secret-do-not-use-in-prod
 ALGORITHM = "HS256"
 EXPIRE_HOURS = 8
 
-pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
 bearer = HTTPBearer(auto_error=False)
+
+
+def _hash(password: str) -> str:
+    return hashlib.sha256(password.encode()).hexdigest()
+
+
+def _verify(password: str, hashed: str) -> bool:
+    return _hash(password) == hashed
 
 
 # ---------------------------------------------------------------------------
@@ -83,7 +91,7 @@ def get_current_user(
 @router.post("/login", response_model=TokenResponse)
 def login(body: LoginRequest, db: Session = Depends(get_db)):
     user = db.query(models.User).filter(models.User.email == body.email).first()
-    if not user or not pwd_ctx.verify(body.password, user.password_hash):
+    if not user or not _verify(body.password, user.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
     return TokenResponse(
         access_token=_create_token(user),
