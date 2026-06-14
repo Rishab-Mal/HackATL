@@ -59,6 +59,7 @@ class FactoryRecordOut(FactoryRecordCreate):
 
 class LotCreate(BaseModel):
     name: str
+    description: Optional[str] = ""
     fabric_type: str
     composition: str
     color_name: str
@@ -74,6 +75,7 @@ class LotOut(BaseModel):
 
     id: int
     name: str
+    description: str
     fabric_type: str
     composition: str
     color_name: str

@@ -86,6 +86,7 @@ export default function Capture() {
 
     const payload = {
       name: form.name,
+      description: form.description,
       fabric_type: form.fabric_type || 'Unspecified',
       composition: form.composition || 'Unspecified',
       color_name: activeGroup.color_name,
@@ -162,6 +163,15 @@ export default function Capture() {
             />
           </label>
           <label>
+            Description
+            <textarea
+              value={form.description}
+              onChange={(e) => setForm({ ...form, description: e.target.value })}
+              placeholder="Short product-style description for buyers"
+              rows={3}
+            />
+          </label>
+          <label>
             Fabric type
             <input
               value={form.fabric_type}
@@ -229,7 +239,15 @@ export default function Capture() {
 }
 
 function emptyForm() {
-  return { name: '', fabric_type: '', composition: '', weight_kg: '', price_usd: '', factory_record_id: '' }
+  return {
+    name: '',
+    description: '',
+    fabric_type: '',
+    composition: '',
+    weight_kg: '',
+    price_usd: '',
+    factory_record_id: '',
+  }
 }
 
 function capitalize(s) {
