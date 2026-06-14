@@ -48,8 +48,18 @@ export default function SortedLots() {
               <div className="lot-stats">
                 <span>{lot.piece_count} pieces</span>
                 <span>{lot.weight_kg} kg</span>
-                <span>${lot.price_usd}</span>
+                <span className="lot-price">
+                  ${lot.current_price_usd.toFixed(2)}
+                  {lot.price_decay_pct > 0 && (
+                    <span className="decay-badge">↓{lot.price_decay_pct}%</span>
+                  )}
+                </span>
               </div>
+              {lot.price_decay_pct > 0 && (
+                <p className="muted decay-hint">
+                  Listed {lot.days_listed}d ago · was ${lot.price_usd.toFixed(2)}
+                </p>
+              )}
               <div className="lot-impact">
                 <span>{lot.carbon_saved_kg} kg CO2 saved</span>
                 <span>{lot.water_saved_l.toLocaleString()} L water saved</span>

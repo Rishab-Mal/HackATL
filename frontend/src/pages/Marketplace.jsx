@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { claimLot, getBuyers, getLotFilterOptions, getLots } from '../api.js'
+import CarterSpotlight from '../components/CarterSpotlight.jsx'
 import LotFilters from '../components/LotFilters.jsx'
 
 // Person 3 (frontend) owns this screen. Person 4 (marketplace, impact logic,
@@ -57,6 +58,8 @@ export default function Marketplace() {
 
       {error && <div className="error">{error}</div>}
 
+      <CarterSpotlight />
+
       <h2>Available lots</h2>
       <LotFilters options={options} filters={filters} onChange={setFilters} />
 
@@ -71,9 +74,18 @@ export default function Marketplace() {
             <div className="lot-info">
               <h3>{lot.name}</h3>
               <p>
-                {lot.fabric_type} - {lot.weight_kg} kg - ${lot.price_usd}
+                {lot.fabric_type} · {lot.weight_kg} kg ·{' '}
+                <span className="lot-price">
+                  ${lot.current_price_usd.toFixed(2)}
+                  {lot.price_decay_pct > 0 && (
+                    <span className="decay-badge">↓{lot.price_decay_pct}%</span>
+                  )}
+                </span>
               </p>
               {lot.description && <p className="lot-description">{lot.description}</p>}
+              {lot.price_decay_pct > 0 && (
+                <p className="muted decay-hint">Listed {lot.days_listed}d ago · was ${lot.price_usd.toFixed(2)}</p>
+              )}
               <div className="claim-row">
                 <select
                   defaultValue=""
