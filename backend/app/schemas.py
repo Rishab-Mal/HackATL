@@ -87,6 +87,7 @@ class LotOut(BaseModel):
     water_saved_l: float
     status: str
     claimed_by: Optional[str] = None
+    claimed_at: Optional[datetime] = None
     factory_record_id: Optional[int] = None
     created_at: datetime
 
@@ -139,6 +140,13 @@ class BuyerOut(BaseModel):
             description=obj.description,
             interested_materials=materials,
         )
+
+
+class ActivityItem(BaseModel):
+    lot_id: int
+    lot_name: str
+    buyer_name: str
+    claimed_at: datetime
 
 
 class ImpactSummary(BaseModel):

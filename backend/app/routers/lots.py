@@ -2,6 +2,7 @@
 inventory. Owned by Person 2 (backend, lots, and factory records).
 """
 
+from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -97,6 +98,7 @@ def claim_lot(lot_id: int, claim: schemas.LotClaim, db: Session = Depends(get_db
 
     lot.status = "claimed"
     lot.claimed_by = claim.buyer_name
+    lot.claimed_at = datetime.utcnow()
     db.commit()
     db.refresh(lot)
     return lot

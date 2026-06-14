@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { claimLot, getBuyers, getLotFilterOptions, getLots } from '../api.js'
+import ActivityFeed from '../components/ActivityFeed.jsx'
 import LotFilters from '../components/LotFilters.jsx'
 
 // Person 3 (frontend) owns this screen. Person 4 (marketplace, impact logic,
@@ -14,6 +15,7 @@ export default function Marketplace() {
   const [filters, setFilters] = useState(EMPTY_FILTERS)
   const [error, setError] = useState(null)
   const [selectedBuyer, setSelectedBuyer] = useState({})
+  const [activityVersion, setActivityVersion] = useState(0)
 
   useEffect(() => {
     getLotFilterOptions().then(setOptions).catch((err) => setError(err.message))
@@ -32,6 +34,7 @@ export default function Marketplace() {
     try {
       await claimLot(lotId, buyerName)
       refreshLots()
+      setActivityVersion((v) => v + 1)
     } catch (err) {
       setError(err.message)
     }
@@ -43,6 +46,8 @@ export default function Marketplace() {
       <p className="subtitle">Recyclers and makers who can claim available scrap lots.</p>
 
       {error && <div className="error">{error}</div>}
+
+      <ActivityFeed refreshKey={activityVersion} />
 
       <h2>Available lots</h2>
       <LotFilters options={options} filters={filters} onChange={setFilters} />

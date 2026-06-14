@@ -11,6 +11,7 @@ real to filter.
 """
 
 import random
+from datetime import datetime, timedelta
 
 from sqlalchemy.orm import Session
 
@@ -180,6 +181,7 @@ def _make_lots(rng: random.Random, factory_records, buyers):
         price_usd = round(weight_kg * rng.uniform(2.5, 6.0), 2)
 
         is_claimed = rng.random() < 0.3
+        claimed_at = datetime.utcnow() - timedelta(minutes=rng.randint(1, 60 * 24 * 7)) if is_claimed else None
 
         lots.append(
             models.Lot(
@@ -195,6 +197,7 @@ def _make_lots(rng: random.Random, factory_records, buyers):
                 water_saved_l=round(weight_kg * WATER_PER_KG, 2),
                 status="claimed" if is_claimed else "available",
                 claimed_by=rng.choice(buyer_names) if is_claimed else None,
+                claimed_at=claimed_at,
                 factory_record_id=factory_record.id,
             )
         )
