@@ -70,6 +70,10 @@ export function getBuyers() {
   return request('/marketplace/buyers')
 }
 
+export function getActivity() {
+  return request('/marketplace/activity')
+}
+
 export function claimLot(lotId, buyerName) {
   return request(`/lots/${lotId}/claim`, {
     method: 'POST',

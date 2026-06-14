@@ -45,6 +45,7 @@ class Lot(Base):
     water_saved_l = Column(Float, default=0.0)
     status = Column(String, default="available")  # available | claimed
     claimed_by = Column(String, nullable=True)
+    claimed_at = Column(DateTime, nullable=True)
     factory_record_id = Column(Integer, ForeignKey("factory_records.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 

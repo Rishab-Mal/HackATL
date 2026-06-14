@@ -2,7 +2,7 @@
 Person 4 (marketplace, impact logic, and demo data).
 """
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from .. import constants, models, schemas
@@ -30,6 +30,29 @@ def create_buyer(buyer: schemas.BuyerCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(db_buyer)
     return schemas.BuyerOut.from_orm_obj(db_buyer)
+
+
+@router.get("/activity", response_model=list[schemas.ActivityItem])
+def get_activity(limit: int = Query(default=20, le=100), db: Session = Depends(get_db)):
+    """Most recent lot claims, newest first -- powers the "deals closed"
+    activity feed on the Marketplace page."""
+
+    lots = (
+        db.query(models.Lot)
+        .filter(models.Lot.status == "claimed", models.Lot.claimed_at.isnot(None))
+        .order_by(models.Lot.claimed_at.desc())
+        .limit(limit)
+        .all()
+    )
+    return [
+        schemas.ActivityItem(
+            lot_id=lot.id,
+            lot_name=lot.name,
+            buyer_name=lot.claimed_by,
+            claimed_at=lot.claimed_at,
+        )
+        for lot in lots
+    ]
 
 
 @impact_router.get("/impact", response_model=schemas.ImpactSummary)

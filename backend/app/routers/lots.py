@@ -2,6 +2,7 @@
 inventory. Owned by Person 2 (backend, lots, and factory records).
 """
 
+from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -36,6 +37,7 @@ def _enrich(lot: models.Lot) -> schemas.LotOut:
         water_saved_l=lot.water_saved_l,
         status=lot.status,
         claimed_by=lot.claimed_by,
+        claimed_at=lot.claimed_at,
         factory_record_id=lot.factory_record_id,
         created_at=lot.created_at,
     )
@@ -131,6 +133,7 @@ def claim_lot(lot_id: int, claim: schemas.LotClaim, db: Session = Depends(get_db
 
     lot.status = "claimed"
     lot.claimed_by = claim.buyer_name
+    lot.claimed_at = datetime.utcnow()
     db.commit()
     db.refresh(lot)
     return _enrich(lot)

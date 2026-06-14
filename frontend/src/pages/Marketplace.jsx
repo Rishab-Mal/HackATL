@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { claimLot, getBuyers, getLotFilterOptions, getLots } from '../api.js'
+import ActivityFeed from '../components/ActivityFeed.jsx'
 import CarterSpotlight from '../components/CarterSpotlight.jsx'
 import LotFilters from '../components/LotFilters.jsx'
 
@@ -15,6 +16,7 @@ export default function Marketplace() {
   const [filters, setFilters] = useState(EMPTY_FILTERS)
   const [error, setError] = useState(null)
   const [selectedBuyer, setSelectedBuyer] = useState({})
+  const [activityVersion, setActivityVersion] = useState(0)
   const [claimModal, setClaimModal] = useState(null) // { lot, buyerName, status: 'confirm' | 'sending' | 'done' }
 
   useEffect(() => {
@@ -41,6 +43,7 @@ export default function Marketplace() {
       await claimLot(claimModal.lot.id, claimModal.buyerName)
       setClaimModal({ ...claimModal, status: 'done' })
       refreshLots()
+      setActivityVersion((v) => v + 1)
     } catch (err) {
       setError(err.message)
       setClaimModal(null)
@@ -59,6 +62,8 @@ export default function Marketplace() {
       {error && <div className="error">{error}</div>}
 
       <CarterSpotlight />
+
+      <ActivityFeed refreshKey={activityVersion} />
 
       <h2>Available lots</h2>
       <LotFilters options={options} filters={filters} onChange={setFilters} />

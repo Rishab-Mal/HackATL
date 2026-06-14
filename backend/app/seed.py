@@ -188,6 +188,7 @@ def _make_lots(rng: random.Random, factory_records, buyers):
         )
         days_ago = rng.randint(0, 45)
         is_claimed = rng.random() < 0.3
+        claimed_at = datetime.utcnow() - timedelta(minutes=rng.randint(1, 60 * 24 * 7)) if is_claimed else None
 
         lots.append(
             models.Lot(
@@ -203,6 +204,7 @@ def _make_lots(rng: random.Random, factory_records, buyers):
                 water_saved_l=round(weight_kg * WATER_PER_KG, 2),
                 status="claimed" if is_claimed else "available",
                 claimed_by=rng.choice(buyer_names) if is_claimed else None,
+                claimed_at=claimed_at,
                 factory_record_id=factory_record.id,
                 created_at=datetime.utcnow() - timedelta(days=days_ago),
             )
