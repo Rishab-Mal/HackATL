@@ -33,6 +33,7 @@ class Lot(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
+    description = Column(Text, default="")
     fabric_type = Column(String, nullable=False)
     composition = Column(String, nullable=False)
     color_name = Column(String, nullable=False)

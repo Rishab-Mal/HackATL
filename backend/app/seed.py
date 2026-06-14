@@ -34,6 +34,12 @@ def seed_data(db: Session) -> None:
     lots = [
         _make_lot(
             name="Blue Cotton Jersey Scraps",
+            description=(
+                "Cone-shaped jersey offcuts in a consistent denim-blue tone, pulled "
+                "from a single t-shirt production run. Soft hand-feel and a stable "
+                "95/5 cotton-spandex blend make this lot a strong fit for cut-and-sew "
+                "remnant projects or fiber reclaim feeding stock."
+            ),
             fabric_type="Cotton/Spandex Jersey",
             composition="95% cotton, 5% spandex",
             color_name="blue",
@@ -46,6 +52,12 @@ def seed_data(db: Session) -> None:
         ),
         _make_lot(
             name="White Cotton Jersey Scraps",
+            description=(
+                "Bright, undyed jersey trim from the same kids' t-shirt run as our "
+                "blue lot. Clean white base is easy to over-dye or print, making it "
+                "popular with small-batch makers building patchwork or custom-color "
+                "goods."
+            ),
             fabric_type="Cotton/Spandex Jersey",
             composition="95% cotton, 5% spandex",
             color_name="white",
@@ -58,6 +70,12 @@ def seed_data(db: Session) -> None:
         ),
         _make_lot(
             name="Navy Cotton Twill Offcuts",
+            description=(
+                "Heavyweight twill remnants in a deep navy, cut from the pants "
+                "production line. Denim-weight 100% cotton holds up well for "
+                "mechanical recycling into reclaimed yarn or industrial wiping "
+                "cloths."
+            ),
             fabric_type="Cotton Twill",
             composition="100% cotton",
             color_name="navy",
@@ -71,6 +89,11 @@ def seed_data(db: Session) -> None:
         ),
         _make_lot(
             name="Beige Cotton Twill Offcuts",
+            description=(
+                "Neutral beige twill offcuts, same heavyweight 100% cotton as our "
+                "navy lot. Versatile color works well as filler stock for insulation "
+                "or fiber-fill projects, or as a base for over-dyeing."
+            ),
             fabric_type="Cotton Twill",
             composition="100% cotton",
             color_name="beige",
@@ -122,6 +145,7 @@ def seed_data(db: Session) -> None:
 
 def _make_lot(
     name,
+    description,
     fabric_type,
     composition,
     color_name,
@@ -135,6 +159,7 @@ def _make_lot(
 ):
     return models.Lot(
         name=name,
+        description=description,
         fabric_type=fabric_type,
         composition=composition,
         color_name=color_name,
@@ -148,3 +173,4 @@ def _make_lot(
         claimed_by=claimed_by,
         factory_record_id=factory_record.id,
     )
+
