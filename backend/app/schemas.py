@@ -125,7 +125,7 @@ class LotOut(BaseModel):
 
     id: int
     name: str
-    description: str
+    description: Optional[str] = ""
     fabric_type: str
     composition: str
     color_name: str

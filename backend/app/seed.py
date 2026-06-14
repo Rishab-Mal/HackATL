@@ -15,10 +15,15 @@ from datetime import datetime, timedelta
 
 from sqlalchemy.orm import Session
 
+import hashlib
+
 from . import models
 from .constants import CARBON_PER_KG, WATER_PER_KG
 from .pricing import calculate_base_price
 from .vision.colors import PALETTE, rgb_to_hex
+
+def _hash(pw: str) -> str:
+    return hashlib.sha256(pw.encode()).hexdigest()
 
 RANDOM_SEED = 42
 NUM_FACTORY_RECORDS = 14
@@ -46,6 +51,15 @@ LOT_NOUNS = ["Scraps", "Offcuts", "Remnants", "Trim Waste"]
 def seed_data(db: Session) -> None:
     if db.query(models.FactoryRecord).count() > 0:
         return  # already seeded
+
+    # Demo portal users
+    demo_users = [
+        models.User(email="factory@demo.com", password_hash=_hash("factory123"), role="factory", name="Factory Worker"),
+        models.User(email="admin@demo.com",   password_hash=_hash("admin123"),   role="admin",   name="Admin"),
+        models.User(email="buyer@demo.com",   password_hash=_hash("buyer123"),   role="buyer",   name="Buyer"),
+    ]
+    db.add_all(demo_users)
+    db.commit()
 
     rng = random.Random(RANDOM_SEED)
 

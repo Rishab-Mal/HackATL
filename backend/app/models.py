@@ -52,6 +52,18 @@ class Lot(Base):
     factory_record = relationship("FactoryRecord", back_populates="lots")
 
 
+class User(Base):
+    """Portal user — role determines which UI they see."""
+
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, unique=True, nullable=False, index=True)
+    password_hash = Column(String, nullable=False)
+    role = Column(String, nullable=False)  # factory | admin | buyer
+    name = Column(String, default="")
+
+
 class Buyer(Base):
     """A recycler or maker profile in the marketplace. Owned by Person 4."""
 
