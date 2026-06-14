@@ -36,10 +36,14 @@ export default function Dashboard() {
         <div className="stat-card">
           <span className="stat-value">{impact.total_carbon_saved_kg} kg</span>
           <span className="stat-label">CO2 saved</span>
+          <span className="stat-equivalent">= {impact.equivalents.car_miles.toLocaleString()} miles driven</span>
+          <span className="stat-equivalent">= {impact.equivalents.phone_charges.toLocaleString()} phone charges</span>
         </div>
         <div className="stat-card">
           <span className="stat-value">{impact.total_water_saved_l.toLocaleString()} L</span>
           <span className="stat-label">Water saved</span>
+          <span className="stat-equivalent">= {impact.equivalents.plastic_bottles.toLocaleString()} plastic bottles</span>
+          <span className="stat-equivalent">= {impact.equivalents.showers.toLocaleString()} showers</span>
         </div>
         <div className="stat-card">
           <span className="stat-value">

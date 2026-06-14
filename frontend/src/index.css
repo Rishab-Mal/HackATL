@@ -458,6 +458,12 @@ button:hover:not(:disabled) {
   font-size: 0.9rem;
 }
 
+.stat-equivalent {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-style: italic;
+}
+
 .breakdown {
   list-style: none;
   padding: 0;
