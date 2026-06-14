@@ -193,6 +193,11 @@ class BuyerOut(BaseModel):
         )
 
 
+class ImpactEquivalents(BaseModel):
+    car_miles: float
+    phone_charges: int
+    plastic_bottles: int
+    showers: float
 class ActivityItem(BaseModel):
     lot_id: int
     lot_name: str
@@ -206,4 +211,5 @@ class ImpactSummary(BaseModel):
     total_weight_kg: float
     total_carbon_saved_kg: float
     total_water_saved_l: float
+    equivalents: ImpactEquivalents
     fabric_breakdown: dict
