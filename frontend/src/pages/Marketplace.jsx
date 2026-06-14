@@ -15,6 +15,7 @@ export default function Marketplace() {
   const [filters, setFilters] = useState(EMPTY_FILTERS)
   const [error, setError] = useState(null)
   const [selectedBuyer, setSelectedBuyer] = useState({})
+  const [claimModal, setClaimModal] = useState(null) // { lot, buyerName, status: 'confirm' | 'sending' | 'done' }
 
   useEffect(() => {
     getLotFilterOptions().then(setOptions).catch((err) => setError(err.message))
@@ -27,15 +28,27 @@ export default function Marketplace() {
 
   useEffect(refreshLots, [filters])
 
-  async function handleClaim(lotId) {
-    const buyerName = selectedBuyer[lotId]
+  function openClaimConfirm(lot) {
+    const buyerName = selectedBuyer[lot.id]
     if (!buyerName) return
+    setClaimModal({ lot, buyerName, status: 'confirm' })
+  }
+
+  async function confirmClaim() {
+    if (!claimModal) return
+    setClaimModal({ ...claimModal, status: 'sending' })
     try {
-      await claimLot(lotId, buyerName)
+      await claimLot(claimModal.lot.id, claimModal.buyerName)
+      setClaimModal({ ...claimModal, status: 'done' })
       refreshLots()
     } catch (err) {
       setError(err.message)
+      setClaimModal(null)
     }
+  }
+
+  function closeClaimModal() {
+    setClaimModal(null)
   }
 
   return (
@@ -87,7 +100,9 @@ export default function Marketplace() {
                     </option>
                   ))}
                 </select>
-                <button onClick={() => handleClaim(lot.id)}>Claim lot</button>
+                <button onClick={() => openClaimConfirm(lot)} disabled={!selectedBuyer[lot.id]}>
+                  Claim lot
+                </button>
               </div>
             </div>
           </div>
@@ -114,6 +129,37 @@ export default function Marketplace() {
           </div>
         ))}
       </div>
+
+      {claimModal && (
+        <div className="modal-overlay" onClick={closeClaimModal}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            {claimModal.status === 'done' ? (
+              <>
+                <p className="modal-success">Request sent to {claimModal.buyerName} ✓</p>
+                <div className="modal-actions">
+                  <button onClick={closeClaimModal}>Done</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <h3>Confirm claim</h3>
+                <p>
+                  Send a claim request for <strong>{claimModal.lot.name}</strong> to{' '}
+                  <strong>{claimModal.buyerName}</strong>?
+                </p>
+                <div className="modal-actions">
+                  <button type="button" onClick={closeClaimModal} disabled={claimModal.status === 'sending'}>
+                    Cancel
+                  </button>
+                  <button onClick={confirmClaim} disabled={claimModal.status === 'sending'}>
+                    {claimModal.status === 'sending' ? 'Sending...' : 'Confirm'}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
