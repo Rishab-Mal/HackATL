@@ -31,6 +31,8 @@ def detect_scale_reference(
     marker_size_cm: float,
     marker_id: int | None = None,
     fallback_view_width_cm: float = DEFAULT_VIEW_WIDTH_CM,
+    original_image_bgr=None,
+    original_to_work_scale: float = 1.0,
 ):
     """Detect scale and reference objects.
 
@@ -39,26 +41,31 @@ def detect_scale_reference(
     2. visible 0-5 cm ruler/calibration strip (trusted enough for demo)
     3. fallback table-view width estimate (low confidence)
 
-    Marker-like objects that do not decode are still returned in the exclusion
-    mask so they are not counted as fabric.
+    A decoded ArUco marker is the only high-confidence reference. Marker-like
+    fallback is used only when ArUco fails, because dark fabric scraps can look
+    square enough to trigger looser heuristics.
     """
 
     h, w = image_bgr.shape[:2]
     blank = np.zeros((h, w), dtype=np.uint8)
 
     aruco = _detect_aruco(image_bgr, marker_size_cm, marker_id)
-    marker_like = _detect_marker_like_objects(image_bgr)
+    if aruco is None and original_image_bgr is not None and original_image_bgr is not image_bgr:
+        aruco = _scaled_reference(
+            _detect_aruco(original_image_bgr, marker_size_cm, marker_id),
+            float(original_to_work_scale or 1.0),
+            marker_size_cm,
+        )
+
     ruler = _detect_ruler(image_bgr)
 
     exclusion = blank.copy()
     reference_objects = []
 
-    for obj in marker_like:
-        cv2.fillPoly(exclusion, [np.array(obj["polygon"], dtype=np.int32)], 255)
-        reference_objects.append(obj)
-
     if aruco:
         cv2.fillPoly(exclusion, [np.array(aruco["polygon"], dtype=np.int32)], 255)
+        aruco["used_for_scale"] = True
+        aruco["excluded_from_masks"] = True
         reference_objects.append(aruco)
         exclusion = _dilate(exclusion, 7)
         return {
@@ -73,8 +80,29 @@ def detect_scale_reference(
             "reference_objects": reference_objects,
         }
 
+    marker_like = _detect_marker_like_object(image_bgr, marker_size_cm)
+    if marker_like:
+        cv2.fillPoly(exclusion, [np.array(marker_like["polygon"], dtype=np.int32)], 255)
+        marker_like["used_for_scale"] = True
+        marker_like["excluded_from_masks"] = True
+        reference_objects.append(marker_like)
+        exclusion = _dilate(exclusion, 7)
+        return {
+            "found": True,
+            "px_per_cm": marker_like["px_per_cm"],
+            "homography": None,
+            "marker_mask": exclusion,
+            "exclusion_mask": exclusion,
+            "marker_corners": marker_like["polygon"],
+            "scale_method": "marker_like",
+            "scale_confidence": "medium",
+            "reference_objects": reference_objects,
+        }
+
     if ruler:
         cv2.fillPoly(exclusion, [np.array(ruler["polygon"], dtype=np.int32)], 255)
+        ruler["used_for_scale"] = True
+        ruler["excluded_from_masks"] = True
         reference_objects.append(ruler)
         exclusion = _dilate(exclusion, 7)
         return {
@@ -102,6 +130,27 @@ def detect_scale_reference(
         "scale_confidence": "low",
         "reference_objects": reference_objects,
     }
+
+
+def _scaled_reference(reference, scale, marker_size_cm):
+    if not reference or abs(scale - 1.0) < 1e-6:
+        return reference
+    pts = np.array(reference["polygon"], dtype=np.float32) * scale
+    scaled = dict(reference)
+    scaled["polygon"] = pts.astype(int).tolist()
+    scaled["px_per_cm"] = float(reference["px_per_cm"] * scale)
+    world = np.array(
+        [
+            [0.0, 0.0],
+            [marker_size_cm, 0.0],
+            [marker_size_cm, marker_size_cm],
+            [0.0, marker_size_cm],
+        ],
+        dtype=np.float32,
+    )
+    homography, _ = cv2.findHomography(pts, world)
+    scaled["homography"] = homography
+    return scaled
 
 
 def contour_for_mask(mask):
@@ -207,7 +256,9 @@ def _detect_aruco(image_bgr, marker_size_cm, marker_id):
                 continue
             flat_ids = ids.flatten().tolist()
             selected_idx = 0
-            if marker_id is not None and marker_id in flat_ids:
+            if marker_id is not None:
+                if marker_id not in flat_ids:
+                    continue
                 selected_idx = flat_ids.index(marker_id)
             pts = corners[selected_idx].reshape(4, 2).astype(np.float32)
             pts = pts / scale + np.array(offset, dtype=np.float32)
@@ -269,7 +320,7 @@ def _aruco_image_variants(image_bgr):
     return variants
 
 
-def _detect_marker_like_objects(image_bgr):
+def _detect_marker_like_object(image_bgr, marker_size_cm):
     gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
     h, w = gray.shape
     roi_y1 = int(h * 0.45)
@@ -279,27 +330,51 @@ def _detect_marker_like_objects(image_bgr):
     _, dark = cv2.threshold(roi, 80, 255, cv2.THRESH_BINARY_INV)
     dark = cv2.morphologyEx(dark, cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8), iterations=1)
     contours, _ = cv2.findContours(dark, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    objects = []
+    best = None
     for contour in contours:
         area = cv2.contourArea(contour)
-        if area < 800 or area > w * h * 0.08:
+        if area < 800 or area > w * h * 0.025:
             continue
         x, y, bw, bh = cv2.boundingRect(contour)
         aspect = bw / max(1, bh)
-        if not 0.65 <= aspect <= 1.55:
+        if not 0.78 <= aspect <= 1.28:
             continue
         global_contour = contour + np.array([[[0, roi_y1]]], dtype=np.int32)
         rect = cv2.minAreaRect(global_contour)
         box = cv2.boxPoints(rect).astype(int)
-        objects.append(
-            {
-                "type": "marker_like",
-                "polygon": box.tolist(),
-                "confidence": "medium",
-                "note": "High-contrast square excluded from fabric masks but not trusted for scale.",
-            }
-        )
-    return objects
+        if not _has_marker_like_interior(gray, box):
+            continue
+        side_px = float((rect[1][0] + rect[1][1]) / 2.0)
+        score = area + side_px * 20
+        obj = {
+            "type": "marker_like",
+            "polygon": box.tolist(),
+            "px_per_cm": side_px / marker_size_cm,
+            "confidence": "medium",
+            "note": "Strict high-contrast square fallback used because ArUco could not be decoded.",
+        }
+        if best is None or score > best[0]:
+            best = (score, obj)
+    return best[1] if best else None
+
+
+def _has_marker_like_interior(gray, polygon):
+    mask = np.zeros(gray.shape, dtype=np.uint8)
+    cv2.fillPoly(mask, [np.array(polygon, dtype=np.int32)], 255)
+    x, y, w, h = cv2.boundingRect(np.array(polygon, dtype=np.int32))
+    if w < 20 or h < 20:
+        return False
+    crop = gray[y : y + h, x : x + w]
+    crop_mask = mask[y : y + h, x : x + w] > 0
+    if crop.size == 0 or crop_mask.sum() < 400:
+        return False
+    values = crop[crop_mask]
+    dark = float(np.mean(values < 70))
+    light = float(np.mean(values > 175))
+    contrast = float(np.std(values))
+    edges = cv2.Canny(crop, 60, 160)
+    edge_fraction = float(np.mean(edges[crop_mask] > 0))
+    return dark > 0.30 and light > 0.08 and contrast > 55 and edge_fraction > 0.025
 
 
 def _detect_ruler(image_bgr):

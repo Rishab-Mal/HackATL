@@ -47,6 +47,7 @@ def classify_materials(image_bgr, pieces, api_key: str, models: list[str], timeo
         {
             "id": p["id"],
             "color_name": p["color_name"],
+            "color_family": p.get("color_family"),
             "color_hex": p.get("color_hex"),
             "secondary_colors": [
                 {"name": c.get("name"), "percent": c.get("percent")} for c in p.get("secondary_colors", [])[:4]
@@ -80,6 +81,7 @@ def _classification_prompt(metadata):
         "If a piece is printed, striped, checkered, denim, fleece-like, shiny satin-like, jersey/knit, or plain woven, use that visual evidence. "
         "Use only these fabric_type values: "
         f"{', '.join(ALLOWED_FABRICS)}. "
+        "Use color_family as the broad sorting color; do not reinterpret navy denim as black because it is dark. "
         "Composition must be a short percent string like '95% cotton, 5% spandex'. "
         "Estimate gsm from the visible material class, thickness, drape, texture, and folds. "
         "fold_factor should be 1.0 for flat single-layer pieces, 1.5-2.5 for visibly folded/thick pieces. "

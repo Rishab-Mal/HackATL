@@ -31,6 +31,13 @@ def closest_color_name(rgb):
     """Return the palette name whose color is closest to ``rgb``."""
 
     r, g, b = rgb
+    hsv = cv2.cvtColor(np.uint8([[[b, g, r]]]), cv2.COLOR_BGR2HSV)[0, 0]
+    hue, sat, value = int(hsv[0]), int(hsv[1]), int(hsv[2])
+    if value < 95 and sat > 45 and 92 <= hue <= 132:
+        return "navy"
+    if value < 80 and sat < 55:
+        return "black"
+
     best_name = "gray"
     best_dist = float("inf")
     for name, (pr, pg, pb) in PALETTE.items():
@@ -39,6 +46,57 @@ def closest_color_name(rgb):
             best_dist = dist
             best_name = name
     return best_name
+
+
+def color_family(rgb=None, name=None, clusters=None):
+    """Map noisy named colors into demo-stable sorting families."""
+
+    base = (name or "").lower().strip()
+    if rgb is not None:
+        r, g, b = [int(c) for c in rgb]
+        hsv = cv2.cvtColor(np.uint8([[[b, g, r]]]), cv2.COLOR_BGR2HSV)[0, 0]
+        hue, sat, value = int(hsv[0]), int(hsv[1]), int(hsv[2])
+        if value < 105 and sat > 38 and 90 <= hue <= 135:
+            return "navy"
+        if value < 85 and sat < 65:
+            return "black"
+        if sat < 42 and value > 145:
+            return "cream"
+        if (hue <= 10 or hue >= 170) and sat > 55 and value > 55:
+            return "red"
+
+    aliases = {
+        "burgundy": "red",
+        "maroon": "red",
+        "red": "red",
+        "cream": "cream",
+        "beige": "cream",
+        "white": "cream",
+        "off white": "cream",
+        "off-white": "cream",
+        "denim": "navy",
+        "navy": "navy",
+        "blue": "navy",
+        "dark blue": "navy",
+        "black": "black",
+        "charcoal": "black",
+        "gray": "black",
+        "grey": "black",
+    }
+    if base in aliases:
+        return aliases[base]
+
+    if clusters:
+        families = [
+            color_family(rgb=cluster.get("rgb"), name=cluster.get("name"))
+            for cluster in clusters
+            if cluster.get("percent", 0) >= 0.08
+        ]
+        families = [family for family in families if family]
+        if families:
+            return max(set(families), key=families.count)
+
+    return base or "mixed"
 
 
 def rgb_to_hex(rgb):
@@ -136,6 +194,9 @@ def pattern_type(image_bgr, mask, clusters):
         return "solid"
 
     names = {cluster["name"] for cluster in clusters}
+    families = {color_family(rgb=cluster.get("rgb"), name=cluster.get("name")) for cluster in clusters}
+    if len(families) <= 1:
+        return "solid"
     if len(names) <= 1:
         return "solid"
 
