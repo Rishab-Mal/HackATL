@@ -1,7 +1,8 @@
-import { Routes, Route, Navigate, NavLink } from 'react-router-dom'
+import { Routes, Route, Navigate, NavLink, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext.jsx'
 import ProtectedRoute from './components/ProtectedRoute.jsx'
 import ChatBot from './components/ChatBot.jsx'
+import ErrorBoundary from './components/ErrorBoundary.jsx'
 
 import Login from './pages/Login.jsx'
 
@@ -57,31 +58,34 @@ function PortalNav() {
 
 function AppInner() {
   const { user } = useAuth()
+  const location = useLocation()
 
   return (
     <div className="app">
       <PortalNav />
       <main className="content">
-        <Routes>
-          <Route path="/login" element={user ? <Navigate to={`/${user.role}`} replace /> : <Login />} />
+        <ErrorBoundary key={location.pathname}>
+          <Routes>
+            <Route path="/login" element={user ? <Navigate to={`/${user.role}`} replace /> : <Login />} />
 
-          {/* Factory */}
-          <Route path="/factory" element={<ProtectedRoute role="factory"><Capture /></ProtectedRoute>} />
-          <Route path="/factory/bins" element={<ProtectedRoute role="factory"><BinFeed /></ProtectedRoute>} />
+            {/* Factory */}
+            <Route path="/factory" element={<ProtectedRoute role="factory"><Capture /></ProtectedRoute>} />
+            <Route path="/factory/bins" element={<ProtectedRoute role="factory"><BinFeed /></ProtectedRoute>} />
 
-          {/* Admin */}
-          <Route path="/admin" element={<ProtectedRoute role="admin"><AdminDashboard /></ProtectedRoute>} />
-          <Route path="/admin/lots" element={<ProtectedRoute role="admin"><SortedLots /></ProtectedRoute>} />
-          <Route path="/admin/impact" element={<ProtectedRoute role="admin"><Dashboard /></ProtectedRoute>} />
+            {/* Admin */}
+            <Route path="/admin" element={<ProtectedRoute role="admin"><AdminDashboard /></ProtectedRoute>} />
+            <Route path="/admin/lots" element={<ProtectedRoute role="admin"><SortedLots /></ProtectedRoute>} />
+            <Route path="/admin/impact" element={<ProtectedRoute role="admin"><Dashboard /></ProtectedRoute>} />
 
-          {/* Buyer */}
-          <Route path="/buyer" element={<ProtectedRoute role="buyer"><BuyerMarketplace /></ProtectedRoute>} />
-          <Route path="/buyer/marketplace" element={<ProtectedRoute role="buyer"><Marketplace /></ProtectedRoute>} />
+            {/* Buyer */}
+            <Route path="/buyer" element={<ProtectedRoute role="buyer"><BuyerMarketplace /></ProtectedRoute>} />
+            <Route path="/buyer/marketplace" element={<ProtectedRoute role="buyer"><Marketplace /></ProtectedRoute>} />
 
-          {/* Root redirect */}
-          <Route path="/" element={<Navigate to={user ? `/${user.role}` : '/login'} replace />} />
-          <Route path="*" element={<Navigate to={user ? `/${user.role}` : '/login'} replace />} />
-        </Routes>
+            {/* Root redirect */}
+            <Route path="/" element={<Navigate to={user ? `/${user.role}` : '/login'} replace />} />
+            <Route path="*" element={<Navigate to={user ? `/${user.role}` : '/login'} replace />} />
+          </Routes>
+        </ErrorBoundary>
       </main>
       <ChatBot />
     </div>
