@@ -61,9 +61,18 @@ export default function Marketplace() {
             <div className="lot-info">
               <h3>{lot.name}</h3>
               <p>
-                {lot.fabric_type} - {lot.weight_kg} kg - ${lot.price_usd}
+                {lot.fabric_type} · {lot.weight_kg} kg ·{' '}
+                <span className="lot-price">
+                  ${lot.current_price_usd.toFixed(2)}
+                  {lot.price_decay_pct > 0 && (
+                    <span className="decay-badge">↓{lot.price_decay_pct}%</span>
+                  )}
+                </span>
               </p>
               {lot.description && <p className="lot-description">{lot.description}</p>}
+              {lot.price_decay_pct > 0 && (
+                <p className="muted decay-hint">Listed {lot.days_listed}d ago · was ${lot.price_usd.toFixed(2)}</p>
+              )}
               <div className="claim-row">
                 <select
                   defaultValue=""
