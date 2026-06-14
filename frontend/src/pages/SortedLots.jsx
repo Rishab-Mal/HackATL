@@ -44,6 +44,7 @@ export default function SortedLots() {
               <h3>{lot.name}</h3>
               <p>{lot.fabric_type}</p>
               <p className="muted">{lot.composition}</p>
+              {lot.description && <p className="lot-description">{lot.description}</p>}
               <div className="lot-stats">
                 <span>{lot.piece_count} pieces</span>
                 <span>{lot.weight_kg} kg</span>

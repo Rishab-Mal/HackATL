@@ -60,6 +60,7 @@ export default function Marketplace() {
               <p>
                 {lot.fabric_type} - {lot.weight_kg} kg - ${lot.price_usd}
               </p>
+              {lot.description && <p className="lot-description">{lot.description}</p>}
               <div className="claim-row">
                 <select
                   defaultValue=""
