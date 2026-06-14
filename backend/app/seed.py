@@ -15,10 +15,14 @@ from datetime import datetime, timedelta
 
 from sqlalchemy.orm import Session
 
+from passlib.context import CryptContext
+
 from . import models
 from .constants import CARBON_PER_KG, WATER_PER_KG
 from .pricing import calculate_base_price
 from .vision.colors import PALETTE, rgb_to_hex
+
+_pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 RANDOM_SEED = 42
 NUM_FACTORY_RECORDS = 14
@@ -46,6 +50,15 @@ LOT_NOUNS = ["Scraps", "Offcuts", "Remnants", "Trim Waste"]
 def seed_data(db: Session) -> None:
     if db.query(models.FactoryRecord).count() > 0:
         return  # already seeded
+
+    # Demo portal users
+    demo_users = [
+        models.User(email="factory@demo.com", password_hash=_pwd_ctx.hash("factory123"), role="factory", name="Factory Worker"),
+        models.User(email="admin@demo.com",   password_hash=_pwd_ctx.hash("admin123"),   role="admin",   name="Admin"),
+        models.User(email="buyer@demo.com",   password_hash=_pwd_ctx.hash("buyer123"),   role="buyer",   name="Buyer"),
+    ]
+    db.add_all(demo_users)
+    db.commit()
 
     rng = random.Random(RANDOM_SEED)
 
