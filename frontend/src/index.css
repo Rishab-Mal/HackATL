@@ -420,6 +420,166 @@ button:hover:not(:disabled) {
   border-bottom: 1px solid var(--border);
 }
 
+/* ── Carter's Pilot Spotlight ────────────────────────────── */
+
+.spotlight {
+  background: linear-gradient(135deg, #f0f9f4 0%, #e6f4ec 100%);
+  border: 1.5px solid #b6ddc4;
+  border-radius: 14px;
+  padding: 1.75rem 2rem;
+  margin-bottom: 2rem;
+}
+
+.spotlight-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.spotlight-badge {
+  background: var(--accent);
+  color: white;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0.2rem 0.7rem;
+  border-radius: 999px;
+}
+
+.spotlight-tag {
+  background: #d4edda;
+  color: var(--accent-dark);
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.2rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid #b6ddc4;
+}
+
+.spotlight-title {
+  margin: 0 0 0.35rem;
+  font-size: 1.25rem;
+  color: var(--accent-dark);
+}
+
+.spotlight-sub {
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin: 0 0 1.5rem;
+  max-width: 620px;
+  line-height: 1.5;
+}
+
+.spotlight-flow {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.flow-node {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+  min-width: 160px;
+  flex: 1;
+  text-align: center;
+}
+
+.flow-node--accent {
+  border-color: var(--accent);
+  background: #f5fbf7;
+}
+
+.flow-icon {
+  font-size: 1.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.flow-node-label {
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: var(--text);
+  margin-bottom: 0.25rem;
+}
+
+.flow-node-detail {
+  font-size: 0.75rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.flow-arrow {
+  font-size: 1.4rem;
+  color: var(--accent);
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.spotlight-stats {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1rem 1.5rem;
+  margin-bottom: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.spotlight-stat {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  text-align: center;
+  padding: 0.25rem 0.5rem;
+}
+
+.spotlight-stat-value {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--accent-dark);
+}
+
+.spotlight-stat-label {
+  font-size: 0.72rem;
+  color: var(--muted);
+  margin-top: 0.1rem;
+}
+
+.spotlight-divider {
+  width: 1px;
+  height: 36px;
+  background: var(--border);
+  flex-shrink: 0;
+}
+
+.spotlight-quote {
+  margin: 0;
+  padding: 0.85rem 1.25rem;
+  border-left: 3px solid var(--accent);
+  background: white;
+  border-radius: 0 8px 8px 0;
+  font-style: italic;
+  color: var(--text);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.spotlight-quote cite {
+  display: block;
+  margin-top: 0.4rem;
+  font-style: normal;
+  font-size: 0.78rem;
+  color: var(--muted);
+  font-weight: 500;
+}
+
 /* ── Chatbot ─────────────────────────────────────────────── */
 
 .chat-toggle {

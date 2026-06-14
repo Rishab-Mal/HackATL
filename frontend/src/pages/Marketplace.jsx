@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { claimLot, getBuyers, getLotFilterOptions, getLots } from '../api.js'
+import CarterSpotlight from '../components/CarterSpotlight.jsx'
 import LotFilters from '../components/LotFilters.jsx'
 
 // Person 3 (frontend) owns this screen. Person 4 (marketplace, impact logic,
@@ -43,6 +44,8 @@ export default function Marketplace() {
       <p className="subtitle">Recyclers and makers who can claim available scrap lots.</p>
 
       {error && <div className="error">{error}</div>}
+
+      <CarterSpotlight />
 
       <h2>Available lots</h2>
       <LotFilters options={options} filters={filters} onChange={setFilters} />
