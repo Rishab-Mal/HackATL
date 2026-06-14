@@ -93,6 +93,18 @@ class LotClaim(BaseModel):
     buyer_name: str
 
 
+class ColorOption(BaseModel):
+    color_name: str
+    color_hex: str
+
+
+class LotFilterOptions(BaseModel):
+    fabric_types: List[str]
+    colors: List[ColorOption]
+    min_price: float
+    max_price: float
+
+
 # ---------------------------------------------------------------------------
 # Marketplace / buyers / impact (Person 4)
 # ---------------------------------------------------------------------------
