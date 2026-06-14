@@ -21,6 +21,7 @@ def _enrich(lot: models.Lot) -> schemas.LotOut:
     return schemas.LotOut(
         id=lot.id,
         name=lot.name,
+        description=lot.description,
         fabric_type=lot.fabric_type,
         composition=lot.composition,
         color_name=lot.color_name,
