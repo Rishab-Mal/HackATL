@@ -1,10 +1,15 @@
 import { useEffect, useState } from 'react'
 import {
-  LineChart, Line, BarChart, Bar, XAxis, YAxis,
-  CartesianGrid, Tooltip, ResponsiveContainer, Cell,
-} from 'recharts'
+  Card, Grid, Flex, Col,
+  Metric, Text, Title, Bold,
+  Badge, BadgeDelta,
+  AreaChart, BarList,
+  ProgressBar,
+  List, ListItem,
+  Divider,
+} from '@tremor/react'
 
-const COLORS = ['#2f7d4f', '#4caf7d', '#81c995', '#a8d5b5', '#c8e6d0', '#1a5c38', '#3d9e65', '#b6ddc4']
+const valueKg = v => `${v} kg`
 
 export default function Dashboard() {
   const [m, setM] = useState(null)
@@ -21,8 +26,31 @@ export default function Dashboard() {
   if (error) return <div className="error">{error}</div>
   if (!m) return <div className="dash-loading"><div className="dash-spinner" />Loading impact data…</div>
 
+  const impactTrendData = m.impact_trend.map(d => ({
+    date: d.date,
+    'CO₂ Saved (kg)': d.carbon_kg,
+  }))
+
+  const fabricImpactData = m.fabric_impact.map(f => ({
+    name: f.fabric,
+    value: f.carbon_kg,
+  }))
+
+  const equivCards = [
+    { value: m.carbon_equiv_trees,               label: 'Trees absorbing CO₂ for a full year' },
+    { value: m.carbon_equiv_car_miles.toLocaleString(), label: 'Miles of driving avoided' },
+    { value: m.carbon_equiv_flights,              label: 'Domestic flights offset' },
+    { value: m.carbon_equiv_phones.toLocaleString(), label: 'Phone charges powered' },
+    { value: m.water_equiv_showers.toLocaleString(), label: '8-minute showers saved' },
+    { value: m.water_equiv_bathtubs.toLocaleString(), label: 'Bathtubs of water conserved' },
+    { value: m.water_equiv_bottles.toLocaleString(), label: '500 mL bottles not consumed' },
+    { value: m.energy_equiv_homes,               label: 'Homes powered for a year' },
+  ]
+
   return (
     <div className="dash">
+
+      {/* ── Header ── */}
       <div className="dash-header">
         <div>
           <h1 className="dash-title">Environmental Impact</h1>
@@ -35,126 +63,94 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Mission statement */}
-      <div className="impact-mission">
-        <div className="impact-mission-text">
-          <div className="impact-eyebrow">Our Mission</div>
-          <p>Every kilogram of fabric diverted from landfill prevents raw-material extraction, toxic dye processing, and methane emissions from decomposition. Scrap Sorter turns factory waste into a circular supply chain.</p>
-        </div>
-        <div className="impact-mission-stat">
-          <div className="impact-mission-num">{m.diversion_pct}%</div>
-          <div className="impact-mission-label">of 500 kg pilot goal reached</div>
-          <div className="diversion-bar-track" style={{ marginTop: '0.75rem' }}>
-            <div className="diversion-bar-fill" style={{ width: `${m.diversion_pct}%` }} />
+      {/* ── Mission + Diversion Progress ── */}
+      <Card className="mb-4">
+        <Flex alignItems="start" className="gap-8 flex-wrap">
+          <div className="flex-1 min-w-0">
+            <Text className="text-green-700 font-semibold uppercase text-xs tracking-widest mb-1">Our Mission</Text>
+            <Text>
+              Every kilogram of fabric diverted from landfill prevents raw-material extraction,
+              toxic dye processing, and methane emissions from decomposition. Scrap Sorter turns
+              factory waste into a circular supply chain.
+            </Text>
           </div>
-        </div>
-      </div>
+          <div className="min-w-48">
+            <Metric>{m.diversion_pct}%</Metric>
+            <Text className="mt-1">of {m.diversion_target_kg} kg pilot goal reached</Text>
+            <ProgressBar value={m.diversion_pct} color="green" className="mt-3" />
+            <Flex className="mt-1">
+              <Text className="text-xs"><Bold>{m.total_weight_kg} kg</Bold> diverted</Text>
+              <Text className="text-xs">{Math.max(0, m.diversion_target_kg - m.total_weight_kg).toFixed(1)} kg to go</Text>
+            </Flex>
+          </div>
+        </Flex>
+      </Card>
 
-      {/* Hero numbers */}
-      <div className="impact-hero-row">
-        <div className="impact-hero-card impact-hero--carbon">
-          <div className="impact-hero-icon">🌿</div>
-          <div className="impact-hero-value">{m.total_carbon_saved_kg} kg</div>
-          <div className="impact-hero-label">CO₂ Emissions Prevented</div>
-        </div>
-        <div className="impact-hero-card impact-hero--water">
-          <div className="impact-hero-icon">💧</div>
-          <div className="impact-hero-value">{m.total_water_saved_l.toLocaleString()} L</div>
-          <div className="impact-hero-label">Water Conserved</div>
-        </div>
-        <div className="impact-hero-card impact-hero--fabric">
-          <div className="impact-hero-icon">♻️</div>
-          <div className="impact-hero-value">{m.total_weight_kg} kg</div>
-          <div className="impact-hero-label">Fabric Diverted from Landfill</div>
-        </div>
-        <div className="impact-hero-card impact-hero--energy">
-          <div className="impact-hero-icon">⚡</div>
-          <div className="impact-hero-value">{m.energy_saved_kwh.toLocaleString()} kWh</div>
-          <div className="impact-hero-label">Energy Saved</div>
-        </div>
-      </div>
+      {/* ── Hero metrics ── */}
+      <Grid numItemsSm={2} numItemsLg={4} className="gap-3 mb-4">
+        <Card decoration="top" decorationColor="green">
+          <Text>CO₂ Emissions Prevented</Text>
+          <Metric className="mt-1">{m.total_carbon_saved_kg} kg</Metric>
+          <BadgeDelta deltaType="increase" size="xs" className="mt-2">Diverted</BadgeDelta>
+        </Card>
+        <Card decoration="top" decorationColor="blue">
+          <Text>Water Conserved</Text>
+          <Metric className="mt-1">{m.total_water_saved_l.toLocaleString()} L</Metric>
+          <BadgeDelta deltaType="increase" size="xs" className="mt-2">Saved</BadgeDelta>
+        </Card>
+        <Card decoration="top" decorationColor="violet">
+          <Text>Fabric Diverted from Landfill</Text>
+          <Metric className="mt-1">{m.total_weight_kg} kg</Metric>
+          <BadgeDelta deltaType="increase" size="xs" className="mt-2">From landfill</BadgeDelta>
+        </Card>
+        <Card decoration="top" decorationColor="orange">
+          <Text>Energy Saved</Text>
+          <Metric className="mt-1">{m.energy_saved_kwh.toLocaleString()} kWh</Metric>
+          <BadgeDelta deltaType="increase" size="xs" className="mt-2">Conserved</BadgeDelta>
+        </Card>
+      </Grid>
 
-      {/* Equivalency grid */}
-      <div className="impact-equiv-header">
-        <div className="impact-eyebrow" style={{ margin: '1.5rem 0 0.75rem' }}>What that actually means</div>
-      </div>
-      <div className="equiv-grid">
-        <div className="equiv-card">
-          <div className="equiv-icon">🌳</div>
-          <div className="equiv-value">{m.carbon_equiv_trees}</div>
-          <div className="equiv-label">Trees absorbing CO₂ for a full year</div>
-        </div>
-        <div className="equiv-card">
-          <div className="equiv-icon">🚗</div>
-          <div className="equiv-value">{m.carbon_equiv_car_miles.toLocaleString()}</div>
-          <div className="equiv-label">Miles of driving avoided</div>
-        </div>
-        <div className="equiv-card">
-          <div className="equiv-icon">✈️</div>
-          <div className="equiv-value">{m.carbon_equiv_flights}</div>
-          <div className="equiv-label">Domestic flights offset</div>
-        </div>
-        <div className="equiv-card">
-          <div className="equiv-icon">📱</div>
-          <div className="equiv-value">{m.carbon_equiv_phones.toLocaleString()}</div>
-          <div className="equiv-label">Phone charges powered</div>
-        </div>
-        <div className="equiv-card">
-          <div className="equiv-icon">🚿</div>
-          <div className="equiv-value">{m.water_equiv_showers.toLocaleString()}</div>
-          <div className="equiv-label">8-minute showers saved</div>
-        </div>
-        <div className="equiv-card">
-          <div className="equiv-icon">🛁</div>
-          <div className="equiv-value">{m.water_equiv_bathtubs.toLocaleString()}</div>
-          <div className="equiv-label">Bathtubs of water conserved</div>
-        </div>
-        <div className="equiv-card">
-          <div className="equiv-icon">🍶</div>
-          <div className="equiv-value">{m.water_equiv_bottles.toLocaleString()}</div>
-          <div className="equiv-label">500ml bottles not consumed</div>
-        </div>
-        <div className="equiv-card">
-          <div className="equiv-icon">🏠</div>
-          <div className="equiv-value">{m.energy_equiv_homes}</div>
-          <div className="equiv-label">Homes powered for a year</div>
-        </div>
-      </div>
+      {/* ── Equivalency cards ── */}
+      <Text className="text-green-700 font-semibold uppercase text-xs tracking-widest mb-3">
+        What that actually means
+      </Text>
+      <Grid numItemsSm={2} numItemsLg={4} className="gap-3 mb-5">
+        {equivCards.map((item, i) => (
+          <Card key={i}>
+            <Metric>{item.value}</Metric>
+            <Text className="mt-1">{item.label}</Text>
+          </Card>
+        ))}
+      </Grid>
 
-      {/* Cumulative CO₂ trend */}
-      <div className="chart-card" style={{ marginTop: '1.75rem' }}>
-        <div className="chart-card-title">Cumulative CO₂ Saved — Last 30 Days (kg)</div>
-        <ResponsiveContainer width="100%" height={200}>
-          <LineChart data={m.impact_trend} margin={{ top: 4, right: 16, bottom: 0, left: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e1e4e9" />
-            <XAxis dataKey="date" tick={{ fontSize: 10 }} interval={4} />
-            <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `${v}kg`} />
-            <Tooltip formatter={v => [`${v} kg`, 'CO₂ Saved']} />
-            <Line type="monotone" dataKey="carbon_kg" stroke="#2f7d4f" strokeWidth={2.5} dot={false} />
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
+      {/* ── CO₂ trend chart ── */}
+      <Card className="mb-3">
+        <Title>Cumulative CO₂ Saved — Last 30 Days</Title>
+        <AreaChart
+          className="mt-4 h-48"
+          data={impactTrendData}
+          index="date"
+          categories={['CO₂ Saved (kg)']}
+          colors={['green']}
+          valueFormatter={valueKg}
+          showLegend={false}
+          showGridLines={true}
+        />
+      </Card>
 
-      {/* CO₂ by fabric type */}
-      <div className="chart-card" style={{ marginTop: '1rem' }}>
-        <div className="chart-card-title">CO₂ Saved by Fabric Type (kg)</div>
-        <ResponsiveContainer width="100%" height={220}>
-          <BarChart data={m.fabric_impact} layout="vertical" margin={{ top: 4, right: 50, bottom: 0, left: 90 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e1e4e9" horizontal={false} />
-            <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={v => `${v}kg`} />
-            <YAxis type="category" dataKey="fabric" tick={{ fontSize: 11 }} width={90} />
-            <Tooltip formatter={v => [`${v} kg`, 'CO₂ Saved']} />
-            <Bar dataKey="carbon_kg" radius={[0, 4, 4, 0]}>
-              {m.fabric_impact.map((_, i) => (
-                <Cell key={i} fill={COLORS[i % COLORS.length]} />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
+      {/* ── CO₂ by fabric — Tremor BarList ── */}
+      <Card className="mb-4">
+        <Title>CO₂ Saved by Fabric Type</Title>
+        <BarList
+          data={fabricImpactData}
+          className="mt-4"
+          color="green"
+          valueFormatter={valueKg}
+        />
+      </Card>
 
-      {/* Carter's contribution */}
-      <div className="carters-card" style={{ marginTop: '1.75rem' }}>
+      {/* ── Carter's contribution ── */}
+      <div className="carters-card mb-4">
         <div className="carters-card-header">
           <div>
             <div className="carters-card-eyebrow">Supplier Pilot Contribution</div>
@@ -185,26 +181,27 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Fabric breakdown table */}
-      <div className="impact-eyebrow" style={{ margin: '1.75rem 0 0.75rem' }}>Fabric-level breakdown</div>
-      <div className="table-card" style={{ marginBottom: '3rem' }}>
-        <table className="admin-table">
-          <thead>
-            <tr><th>Fabric Type</th><th>Lots</th><th>Weight (kg)</th><th>CO₂ Saved (kg)</th><th>Water Saved (L)</th></tr>
-          </thead>
-          <tbody>
-            {m.fabric_stats.map(r => (
-              <tr key={r.fabric_type}>
-                <td>{r.fabric_type}</td>
-                <td>{r.lots}</td>
-                <td>{r.weight_kg}</td>
-                <td>{(r.weight_kg * 2.1).toFixed(1)}</td>
-                <td>{(r.weight_kg * 2700).toLocaleString()}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {/* ── Fabric breakdown — Tremor List ── */}
+      <Card className="mb-8">
+        <Title>Fabric-Level Breakdown</Title>
+        <List className="mt-4">
+          {m.fabric_stats.map(r => (
+            <ListItem key={r.fabric_type}>
+              <Flex>
+                <div>
+                  <Text><Bold>{r.fabric_type}</Bold></Text>
+                  <Text className="text-xs">{r.lots} lots · {r.weight_kg} kg</Text>
+                </div>
+                <div className="text-right">
+                  <Text><Bold>{(r.weight_kg * 2.1).toFixed(1)} kg CO₂</Bold></Text>
+                  <Text className="text-xs">{(r.weight_kg * 2700).toLocaleString()} L water</Text>
+                </div>
+              </Flex>
+            </ListItem>
+          ))}
+        </List>
+      </Card>
+
     </div>
   )
 }
