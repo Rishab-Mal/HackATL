@@ -27,7 +27,7 @@ function PortalNav() {
 
   const links = {
     factory: [
-      { to: '/factory', label: 'Capture', end: true },
+      { to: '/factory', label: 'Scan', end: true },
       { to: '/factory/bins', label: 'Bin Feed' },
     ],
     admin: [
@@ -60,10 +60,13 @@ function AppInner() {
   const { user } = useAuth()
   const location = useLocation()
 
+  // Factory routes own their own operator-focused shell.
+  const isFactory = location.pathname.startsWith('/factory')
+
   return (
     <div className="app">
-      <PortalNav />
-      <main className="content">
+      {!isFactory && <PortalNav />}
+      <main className={isFactory ? 'content content-bleed' : 'content'}>
         <ErrorBoundary key={location.pathname}>
           <Routes>
             <Route path="/login" element={user ? <Navigate to={`/${user.role}`} replace /> : <Login />} />
@@ -87,7 +90,7 @@ function AppInner() {
           </Routes>
         </ErrorBoundary>
       </main>
-      <ChatBot />
+      {!isFactory && <ChatBot />}
     </div>
   )
 }

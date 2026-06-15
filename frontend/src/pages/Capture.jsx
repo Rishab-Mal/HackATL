@@ -1,55 +1,119 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { createLot, detectScrap, getFactoryRecords } from '../api.js'
+import { Link } from 'react-router-dom'
+import { createLot, detectScrap } from '../api.js'
+import { useAuth } from '../context/AuthContext.jsx'
 
-// Person 3 (frontend) owns this screen. Person 1 (vision) owns the
-// /api/vision/detect response shape this page renders -- see
-// backend/app/schemas.py: DetectResponse / Piece / ColorGroup.
+// Factory worker scanning flow. Person 1 (vision) owns the /api/vision/detect
+// response shape this screen renders -- see backend/app/schemas.py:
+// DetectResponse / Piece / ColorGroup. The full response is kept in state even
+// though most fields are not shown, so the admin side can use them later.
+
+const STATUS_LINES = [
+  'Checking photo',
+  'Finding scrap edges',
+  'Grouping colors',
+  'Estimating pieces',
+  'Preparing pack list',
+]
 
 export default function Capture() {
-  const [file, setFile] = useState(null)
+  const [stage, setStage] = useState('start') // start | capture | processing | plan | listed | error
   const [previewUrl, setPreviewUrl] = useState(null)
   const [result, setResult] = useState(null)
-  const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
-  const [factoryRecords, setFactoryRecords] = useState([])
-  const [activeGroup, setActiveGroup] = useState(null)
-  const [form, setForm] = useState(emptyForm())
-  const [savedMessage, setSavedMessage] = useState(null)
+  const [packed, setPacked] = useState(() => new Set())
+  const [finishedBatch, setFinishedBatch] = useState(null)
+  const [statusIdx, setStatusIdx] = useState(0)
+  const [zoomOpen, setZoomOpen] = useState(false)
 
+  const autoSavedRef = useRef(false)
   const canvasRef = useRef(null)
   const imgRef = useRef(null)
-  const navigate = useNavigate()
 
+  // Cycle the status readout while we wait on the detect call.
   useEffect(() => {
-    getFactoryRecords().then(setFactoryRecords).catch(() => {})
-  }, [])
+    if (stage !== 'processing') return
+    setStatusIdx(0)
+    const timer = setInterval(() => {
+      setStatusIdx((i) => (i + 1) % STATUS_LINES.length)
+    }, 1500)
+    return () => clearInterval(timer)
+  }, [stage])
 
-  function handleFileChange(e) {
-    const selected = e.target.files[0]
+  function startScan(e) {
+    const selected = e.target.files && e.target.files[0]
+    e.target.value = '' // allow re-picking the same file later
     if (!selected) return
-    setFile(selected)
-    setPreviewUrl(URL.createObjectURL(selected))
-    setResult(null)
-    setSavedMessage(null)
-  }
 
-  async function handleDetect() {
-    if (!file) return
-    setLoading(true)
+    autoSavedRef.current = false
     setError(null)
-    try {
-      setResult(await detectScrap(file))
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setLoading(false)
-    }
+    setResult(null)
+    setPacked(new Set())
+    setFinishedBatch(null)
+    setZoomOpen(false)
+    setPreviewUrl(URL.createObjectURL(selected))
+    setStage('processing')
+
+    detectScrap(selected)
+      .then((res) => {
+        setResult(res)
+        autoSaveLots(res)
+        setStage('plan')
+      })
+      .catch((err) => {
+        setError(friendlyError(err))
+        setStage('error')
+      })
   }
 
-  // Draw bounding boxes for each detected piece over the preview image.
+  // Silently turn each detected color group into a marketplace lot. Invisible to
+  // the worker -- it just makes scanned materials available to buyers right away.
+  // One failure never blocks the others or the UI, so an un-wired database is safe.
+  function autoSaveLots(res) {
+    if (autoSavedRef.current) return
+    autoSavedRef.current = true
+    const groups = (res && res.groups) || []
+    if (groups.length === 0) return
+    Promise.allSettled(groups.map((g) => createLot(buildLotPayload(g)))).then((results) => {
+      const failed = results.filter((r) => r.status === 'rejected')
+      if (failed.length) console.warn('Some lots could not be listed:', failed)
+      })
+  }
+
+  function finishBatch() {
+    const summary = buildListingSummary(result)
+    setFinishedBatch(summary)
+    setStage('listed')
+  }
+
+  function togglePacked(key) {
+    setPacked((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+
+  function reset(nextStage = 'start') {
+    if (previewUrl) URL.revokeObjectURL(previewUrl)
+    autoSavedRef.current = false
+    setPreviewUrl(null)
+    setResult(null)
+    setError(null)
+    setPacked(new Set())
+    setFinishedBatch(null)
+    setZoomOpen(false)
+    setStage(nextStage)
+  }
+
+  // Fallback only: if the backend did not return a rendered plan image, draw the
+  // piece bounding boxes over the worker's own photo so they still get an
+  // annotated view. Scales each bbox from the original image to the display size.
   useEffect(() => {
-    if (!result || !imgRef.current || !canvasRef.current) return
+    if (stage !== 'plan') return
+    if (!result || result.annotated_image_data_url) return
+    if (!imgRef.current || !canvasRef.current) return
     const img = imgRef.current
     const canvas = canvasRef.current
 
@@ -58,198 +122,520 @@ export default function Capture() {
       canvas.height = img.clientHeight
       const ctx = canvas.getContext('2d')
       ctx.clearRect(0, 0, canvas.width, canvas.height)
-
       const scaleX = canvas.width / result.image_width
       const scaleY = canvas.height / result.image_height
-
       result.pieces.forEach((piece) => {
         const [x, y, w, h] = piece.bbox
-        ctx.strokeStyle = piece.color_hex
-        ctx.lineWidth = 2
+        ctx.strokeStyle = piece.outline_color || piece.color_hex
+        ctx.lineWidth = 3
         ctx.strokeRect(x * scaleX, y * scaleY, w * scaleX, h * scaleY)
       })
     }
 
     if (img.complete) draw()
     else img.onload = draw
-  }, [result, previewUrl])
+  }, [stage, result])
 
-  function openGroupForm(group) {
-    setActiveGroup(group)
-    setForm({ ...emptyForm(), name: `${capitalize(group.color_name)} Scraps` })
-    setSavedMessage(null)
-  }
+  const groups = result ? [...result.groups].sort(sortByBin) : []
+  const annotated = result && result.annotated_image_data_url
 
-  async function handleCreateLot(e) {
-    e.preventDefault()
-    if (!activeGroup) return
+  let body
+  if (stage === 'start') {
+    body = (
+      <section className="fx-stage fx-start">
+        <div className="fx-start-sheet">
+          <div className="fx-start-content">
+            <div className="fx-start-head">
+              <span className="fx-eyebrow">Factory station</span>
+              <h1 className="fx-title">Start a table scan</h1>
+              <p className="fx-lead">
+                Take one clear photo of the work table. The next screen will turn it into boxes to
+                pack, then mark the finished batch as listed.
+              </p>
+            </div>
 
-    const payload = {
-      name: form.name,
-      description: form.description,
-      fabric_type: form.fabric_type || 'Unspecified',
-      composition: form.composition || 'Unspecified',
-      color_name: activeGroup.color_name,
-      color_hex: activeGroup.color_hex,
-      piece_count: activeGroup.piece_count,
-      weight_kg: parseFloat(form.weight_kg) || 0,
-      price_usd: parseFloat(form.price_usd) || 0,
-      factory_record_id: form.factory_record_id ? parseInt(form.factory_record_id, 10) : null,
-    }
+            <div className="fx-table-guide" aria-hidden="true">
+              <div className="fx-table-surface">
+                <span className="fx-scrap fx-scrap--one" />
+                <span className="fx-scrap fx-scrap--two" />
+                <span className="fx-scrap fx-scrap--three" />
+                <span className="fx-scrap fx-scrap--four" />
+              </div>
+              <span className="fx-camera-line" />
+            </div>
 
-    try {
-      await createLot(payload)
-      setSavedMessage(`Lot "${payload.name}" created.`)
-      setActiveGroup(null)
-    } catch (err) {
-      setError(err.message)
-    }
-  }
+            <div className="fx-start-checklist">
+              <div className="fx-check-row">
+                <IconCheck />
+                <span>Keep a small gap between pieces</span>
+              </div>
+              <div className="fx-check-row">
+                <IconCheck />
+                <span>Fit the whole table in the photo</span>
+              </div>
+              <div className="fx-check-row">
+                <IconCheck />
+                <span>Do not move scraps until the pack list appears</span>
+              </div>
+            </div>
+          </div>
 
-  return (
-    <div className="page capture">
-      <h1>1. Capture scrap pile</h1>
-      <p className="subtitle">
-        Upload a photo of mixed fabric scraps to detect and group pieces by color and size.
-      </p>
-
-      <div className="capture-controls">
-        <input type="file" accept="image/*" onChange={handleFileChange} />
-        <button onClick={handleDetect} disabled={!file || loading}>
-          {loading ? 'Detecting...' : 'Detect pieces'}
-        </button>
-      </div>
-
-      {error && <div className="error">{error}</div>}
-
-      {previewUrl && (
-        <div className="image-wrap">
-          <img ref={imgRef} src={previewUrl} alt="Scrap pile" />
-          <canvas ref={canvasRef} className="overlay" />
+          <div className="fx-actions fx-actions--start">
+            <button type="button" className="fx-btn fx-btn--primary" onClick={() => setStage('capture')}>
+              <IconCamera />
+              Scan table
+            </button>
+          </div>
         </div>
-      )}
+      </section>
+    )
+  } else if (stage === 'capture') {
+    body = (
+      <section className="fx-stage fx-home">
+        <div className="fx-intro">
+          <span className="fx-eyebrow">Factory scan</span>
+          <h1 className="fx-title">Scan scraps</h1>
+        </div>
 
-      {result && (
-        <div className="results">
-          <h2>2. Sorted groups (before to after)</h2>
-          <p className="subtitle">
-            {result.pieces.length} pieces detected across {result.groups.length} color groups.
+        <div className="fx-frame fx-frame--idle" aria-label="No photo selected">
+          <div className="fx-frame-hint">
+            <IconCamera />
+            <strong>Take a table photo</strong>
+            <span>The app will group the scraps into boxes.</span>
+          </div>
+        </div>
+
+        <div className="fx-actions">
+          <label className="fx-btn fx-btn--primary">
+            <IconCamera />
+            Take photo
+            <input type="file" accept="image/*" capture="environment" onChange={startScan} />
+          </label>
+          <label className="fx-btn-text">
+            <IconImage />
+            Upload photo
+            <input type="file" accept="image/*" onChange={startScan} />
+          </label>
+        </div>
+      </section>
+    )
+  } else if (stage === 'processing') {
+    body = (
+      <section className="fx-stage fx-processing">
+        <div className="fx-intro">
+          <span className="fx-eyebrow">Processing</span>
+          <h1 className="fx-title">Building pack list</h1>
+        </div>
+
+        <div className="fx-frame fx-frame--scan">
+          {previewUrl && <img src={previewUrl} alt="Your scrap pile" />}
+          <div className="fx-readout">
+            <span className="fx-readout-dot" />
+            <span className="fx-readout-text">{STATUS_LINES[statusIdx]}</span>
+          </div>
+        </div>
+
+        <div className="fx-bar-indeterminate">
+          <span />
+        </div>
+        <p className="fx-mono-note">Usually done in a few seconds</p>
+      </section>
+    )
+  } else if (stage === 'error') {
+    body = (
+      <section className="fx-stage">
+        <Panel
+          icon={<IconAlert />}
+          title="Photo needs another try"
+          text={error || 'Use brighter light, separate the scraps, and take the table straight on.'}
+          onPick={startScan}
+        />
+      </section>
+    )
+  } else if (stage === 'plan') {
+    body = (
+      <section className="fx-stage fx-plan">
+        <div className="fx-intro">
+          <span className="fx-eyebrow">Pack list</span>
+          <h1 className="fx-title">Sort into boxes</h1>
+        </div>
+
+        {groups.length === 0 ? (
+          <Panel
+            icon={<IconSearch />}
+            title="No fabric groups found"
+            text="Spread the pieces out more clearly and retake the table from above."
+            onPick={startScan}
+          />
+        ) : (
+          <>
+            <button
+              type="button"
+              className="fx-frame fx-frame--plan"
+              onClick={() => annotated && setZoomOpen(true)}
+            >
+              {annotated ? (
+                <img src={annotated} alt="Annotated sorting plan" />
+              ) : (
+                <span className="fx-fallback">
+                  <img ref={imgRef} src={previewUrl} alt="Your scrap pile" />
+                  <canvas ref={canvasRef} className="fx-fallback-canvas" />
+                </span>
+              )}
+              {annotated && (
+                <span className="fx-zoom-hint">
+                  <IconExpand />
+                  View larger
+                </span>
+              )}
+            </button>
+
+            <div className="fx-progress" aria-label="Packing progress">
+              <div className="fx-progress-copy">
+                <span className="fx-progress-label">Boxes packed</span>
+                <strong>{packed.size} of {groups.length}</strong>
+              </div>
+              <div className="fx-progress-bar">
+                <div
+                  className="fx-progress-fill"
+                  style={{ width: `${(packed.size / groups.length) * 100}%` }}
+                />
+              </div>
+            </div>
+
+            <div className="fx-section-heading">
+              <h2>Pack manifest</h2>
+            </div>
+
+            <div className="fx-manifest">
+              {groups.map((group, i) => {
+                const key = group.sort_group_id || group.color_name
+                const letter = group.sort_group_id || String.fromCharCode(65 + i)
+                const isPacked = packed.has(key)
+                const chip = group.outline_color || group.color_hex
+                const count = group.piece_count
+                return (
+                  <button
+                    type="button"
+                    key={key}
+                    className={`fx-box ${isPacked ? 'is-packed' : ''}`}
+                    onClick={() => togglePacked(key)}
+                  >
+                    <span
+                      className="fx-box-chip"
+                      style={{ background: chip, color: readableOn(chip) }}
+                    >
+                      {letter}
+                    </span>
+                    <span className="fx-box-info">
+                      <span className="fx-box-code">Box {letter}</span>
+                      <span className="fx-box-name">
+                        {capitalize(group.color_name)}
+                        {group.fabric_type_guess ? ` - ${group.fabric_type_guess}` : ''}
+                      </span>
+                      <span className="fx-box-data">
+                        {count} {count === 1 ? 'piece' : 'pieces'}
+                        {group.total_weight_label ? ` - ${group.total_weight_label}` : ''}
+                      </span>
+                    </span>
+                    <span className="fx-box-check" aria-hidden="true">
+                      <IconCheck />
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+
+            <div className="fx-actions fx-actions--sticky">
+              <button type="button" className="fx-btn fx-btn--primary" onClick={finishBatch}>
+                Finish Batch
+              </button>
+            </div>
+          </>
+        )}
+      </section>
+    )
+  } else if (stage === 'listed') {
+    const summary = finishedBatch || buildListingSummary(result)
+
+    body = (
+      <section className="fx-stage fx-listed">
+        <div className="fx-listed-head">
+          <div className="fx-listed-mark">
+            <IconCheck />
+          </div>
+          <span className="fx-eyebrow">Listed just now</span>
+          <h1 className="fx-title">Materials listed</h1>
+          <p className="fx-lead">
+            Created {summary.listings} {summary.listings === 1 ? 'listing' : 'listings'} from{' '}
+            {summary.pieces} {summary.pieces === 1 ? 'piece' : 'pieces'} on this table.
           </p>
-          <div className="group-grid">
-            {result.groups.map((group) => (
-              <div className="group-card" key={group.color_name}>
-                <div className="swatch" style={{ background: group.color_hex }} />
-                <div className="group-info">
-                  <strong>{capitalize(group.color_name)}</strong>
-                  <span>{group.piece_count} pieces</span>
-                  <span>{group.total_size_percent}% of pile - {group.avg_size_label}</span>
-                </div>
-                <button onClick={() => openGroupForm(group)}>Create lot</button>
+        </div>
+
+        <div className="fx-listed-summary" aria-label="Created listing summary">
+          <div>
+            <span>Listings</span>
+            <strong>{summary.listings}</strong>
+          </div>
+          <div>
+            <span>Pieces</span>
+            <strong>{summary.pieces}</strong>
+          </div>
+          <div>
+            <span>Weight</span>
+            <strong>{summary.weightLabel}</strong>
+          </div>
+        </div>
+
+        <div className="fx-listed-table">
+          <div className="fx-listed-table-head">
+            <h2>Created lots</h2>
+            <span>Buyer side</span>
+          </div>
+          <div className="fx-listed-rows">
+            {summary.rows.map((row) => (
+              <div className="fx-listed-row" key={row.key}>
+                <span
+                  className="fx-listed-swatch"
+                  style={{ background: row.color, color: readableOn(row.color) }}
+                >
+                  {row.letter}
+                </span>
+                <span className="fx-listed-info">
+                  <strong>{row.name}</strong>
+                  <span>
+                    {row.pieces} {row.pieces === 1 ? 'piece' : 'pieces'}
+                    {row.weightLabel ? ` - ${row.weightLabel}` : ''}
+                  </span>
+                </span>
+                <span className="fx-listed-state">Listed</span>
               </div>
             ))}
           </div>
         </div>
-      )}
 
-      {activeGroup && (
-        <form className="lot-form" onSubmit={handleCreateLot}>
-          <h3>New lot: {capitalize(activeGroup.color_name)} scraps</h3>
-          <label>
-            Lot name
-            <input
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              required
-            />
-          </label>
-          <label>
-            Description
-            <textarea
-              value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
-              placeholder="Short product-style description for buyers"
-              rows={3}
-            />
-          </label>
-          <label>
-            Fabric type
-            <input
-              value={form.fabric_type}
-              onChange={(e) => setForm({ ...form, fabric_type: e.target.value })}
-              placeholder="e.g. Cotton/Spandex Jersey"
-            />
-          </label>
-          <label>
-            Composition
-            <input
-              value={form.composition}
-              onChange={(e) => setForm({ ...form, composition: e.target.value })}
-              placeholder="e.g. 95% cotton, 5% spandex"
-            />
-          </label>
-          <label>
-            Weight (kg)
-            <input
-              type="number"
-              step="0.1"
-              value={form.weight_kg}
-              onChange={(e) => setForm({ ...form, weight_kg: e.target.value })}
-            />
-          </label>
-          <label>
-            Price (USD)
-            <input
-              type="number"
-              step="0.5"
-              value={form.price_usd}
-              onChange={(e) => setForm({ ...form, price_usd: e.target.value })}
-            />
-          </label>
-          <label>
-            Factory record (optional)
-            <select
-              value={form.factory_record_id}
-              onChange={(e) => setForm({ ...form, factory_record_id: e.target.value })}
-            >
-              <option value="">None</option>
-              {factoryRecords.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.batch_name} - {r.composition}
-                </option>
-              ))}
-            </select>
-          </label>
-          <div className="form-actions">
-            <button type="submit">Save lot</button>
-            <button type="button" onClick={() => setActiveGroup(null)}>
-              Cancel
-            </button>
-          </div>
-        </form>
-      )}
+        <div className="fx-actions fx-actions--sticky">
+          <button type="button" className="fx-btn fx-btn--primary" onClick={() => reset('capture')}>
+            <IconCamera />
+            Scan another table
+          </button>
+          <button type="button" className="fx-btn-text" onClick={() => setStage('plan')}>
+            Back to pack list
+          </button>
+        </div>
+      </section>
+    )
+  }
 
-      {savedMessage && (
-        <div className="success">
-          {savedMessage}{' '}
-          <a onClick={() => navigate('/lots')}>View sorted lots &rarr;</a>
+  return (
+    <div className="factory-app">
+      <FactoryHeader />
+      <main className={`fx-main ${stage === 'start' ? 'fx-main--dashboard' : ''}`}>{body}</main>
+
+      {zoomOpen && annotated && (
+        <div className="fx-zoom" onClick={() => setZoomOpen(false)}>
+          <button type="button" className="fx-zoom-close" aria-label="Close">
+            <IconClose />
+          </button>
+          <img src={annotated} alt="Annotated sorting plan" />
         </div>
       )}
     </div>
   )
 }
 
-function emptyForm() {
+// --------------------------------------------------------------------------
+// Bespoke header (replaces the shared site nav on this page)
+// --------------------------------------------------------------------------
+
+export function FactoryHeader() {
+  const { logout } = useAuth()
+
+  return (
+    <header className="fx-header">
+      <Link className="fx-brand" to="/factory">
+        <span className="fx-wordmark">Scrap Sorter</span>
+      </Link>
+
+      <button type="button" className="fx-signout" onClick={logout}>
+        Sign out
+      </button>
+    </header>
+  )
+}
+
+function Panel({ icon, title, text, onPick }) {
+  return (
+    <div className="fx-panel">
+      <div className="fx-panel-icon">{icon}</div>
+      <h2 className="fx-panel-title">{title}</h2>
+      <p className="fx-panel-text">{text}</p>
+      <label className="fx-btn fx-btn--primary">
+        <IconCamera />
+        Retake photo
+        <input type="file" accept="image/*" capture="environment" onChange={onPick} />
+      </label>
+    </div>
+  )
+}
+
+// --------------------------------------------------------------------------
+// Inline icons (no emoji). 1.6px stroke, currentColor.
+// --------------------------------------------------------------------------
+
+function svgProps() {
   return {
-    name: '',
-    description: '',
-    fabric_type: '',
-    composition: '',
-    weight_kg: '',
-    price_usd: '',
-    factory_record_id: '',
+    width: '1em',
+    height: '1em',
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 1.6,
+    strokeLinecap: 'round',
+    strokeLinejoin: 'round',
   }
 }
 
+function IconCamera() {
+  return (
+    <svg {...svgProps()}>
+      <path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h2L9 5h6l1.5 2h2A1.5 1.5 0 0 1 20 8.5v8A1.5 1.5 0 0 1 18.5 18h-13A1.5 1.5 0 0 1 4 16.5z" />
+      <circle cx="12" cy="12.5" r="3.2" />
+    </svg>
+  )
+}
+
+function IconImage() {
+  return (
+    <svg {...svgProps()}>
+      <rect x="4" y="5" width="16" height="14" rx="2" />
+      <circle cx="9" cy="10" r="1.4" />
+      <path d="M5 17l4.5-4.5 3 3L16 12l3 3" />
+    </svg>
+  )
+}
+
+function IconCheck() {
+  return (
+    <svg {...svgProps()}>
+      <path d="M5 12.5l4.5 4.5L19 7" />
+    </svg>
+  )
+}
+
+function IconExpand() {
+  return (
+    <svg {...svgProps()}>
+      <path d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5" />
+    </svg>
+  )
+}
+
+function IconClose() {
+  return (
+    <svg {...svgProps()}>
+      <path d="M6 6l12 12M18 6L6 18" />
+    </svg>
+  )
+}
+
+function IconAlert() {
+  return (
+    <svg {...svgProps()}>
+      <path d="M12 4.5l8.5 15h-17z" />
+      <path d="M12 10v4M12 17h.01" />
+    </svg>
+  )
+}
+
+function IconSearch() {
+  return (
+    <svg {...svgProps()}>
+      <circle cx="11" cy="11" r="6" />
+      <path d="M20 20l-4.5-4.5" />
+    </svg>
+  )
+}
+
+// --------------------------------------------------------------------------
+// Helpers
+// --------------------------------------------------------------------------
+
+function buildListingSummary(res) {
+  const groups = res ? [...(res.groups || [])].sort(sortByBin) : []
+  const pieces = groups.reduce((sum, group) => sum + (Number(group.piece_count) || 0), 0)
+  const weightG = groups.reduce((sum, group) => sum + (Number(group.estimated_weight_g) || 0), 0)
+
+  return {
+    listings: groups.length,
+    pieces,
+    weightLabel: weightG > 0 ? formatWeight(weightG) : 'Pending',
+    rows: groups.map((group, i) => {
+      const letter = group.sort_group_id || String.fromCharCode(65 + i)
+      return {
+        key: group.sort_group_id || `${group.color_name}-${i}`,
+        letter,
+        color: group.outline_color || group.color_hex || '#77736c',
+        name: `${capitalize(group.color_name)}${group.fabric_type_guess ? ` - ${group.fabric_type_guess}` : ''}`,
+        pieces: Number(group.piece_count) || 0,
+        weightLabel: group.total_weight_label || (
+          group.estimated_weight_g ? formatWeight(Number(group.estimated_weight_g)) : ''
+        ),
+      }
+    }),
+  }
+}
+
+function buildLotPayload(group) {
+  return {
+    name: `${capitalize(group.color_name)} ${group.fabric_type_guess || 'Scraps'}`.trim(),
+    description: group.sort_instruction || '',
+    fabric_type: group.fabric_type_guess || 'Unspecified',
+    composition: group.composition_guess || 'Unspecified',
+    color_name: group.color_name,
+    color_hex: group.color_hex,
+    piece_count: group.piece_count,
+    weight_kg: group.estimated_weight_g ? Number((group.estimated_weight_g / 1000).toFixed(3)) : 0,
+    price_usd: 0, // let the backend auto-price (see routers/lots.py:create_lot)
+    factory_record_id: null,
+  }
+}
+
+function sortByBin(a, b) {
+  const x = a.sort_group_id || a.color_name || ''
+  const y = b.sort_group_id || b.color_name || ''
+  return x.localeCompare(y)
+}
+
+function friendlyError(err) {
+  const msg = (err && err.message) || ''
+  if (msg.includes('400')) return 'We could not read that image. Take the photo again.'
+  return 'Something went wrong on our side. Please try once more.'
+}
+
+function formatWeight(grams) {
+  if (!Number.isFinite(grams) || grams <= 0) return ''
+  if (grams >= 1000) {
+    const kg = grams / 1000
+    return `${kg >= 10 ? kg.toFixed(1) : kg.toFixed(2)} kg`
+  }
+  return `${Math.round(grams)} g`
+}
+
+// Pick dark or light text so the bin letter stays readable on any fabric color.
+function readableOn(hex) {
+  if (!hex || hex[0] !== '#') return '#FFFFFF'
+  let c = hex.slice(1)
+  if (c.length === 3) c = c.split('').map((x) => x + x).join('')
+  if (c.length !== 6) return '#FFFFFF'
+  const r = parseInt(c.slice(0, 2), 16)
+  const g = parseInt(c.slice(2, 4), 16)
+  const b = parseInt(c.slice(4, 6), 16)
+  const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+  return lum > 0.6 ? '#15191F' : '#FFFFFF'
+}
+
 function capitalize(s) {
+  if (!s) return ''
   return s.charAt(0).toUpperCase() + s.slice(1)
 }

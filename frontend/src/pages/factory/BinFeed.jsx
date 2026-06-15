@@ -1,12 +1,13 @@
 import { useEffect, useState, useRef } from 'react'
 import { getLots } from '../../api.js'
+import { FactoryHeader } from '../Capture.jsx'
 
 const BINS = [
-  { id: 'A', label: 'Bin A', desc: 'White & Natural', colors: ['white', 'natural', 'cream', 'ivory'], bg: '#f8f6f0', border: '#d4c9a8' },
-  { id: 'B', label: 'Bin B', desc: 'Blue & Denim',    colors: ['blue', 'navy', 'denim', 'indigo'],  bg: '#eef2fb', border: '#8fa8e0' },
-  { id: 'C', label: 'Bin C', desc: 'Neutral Darks',   colors: ['black', 'grey', 'gray', 'charcoal'], bg: '#f0f0f0', border: '#a0a0a0' },
-  { id: 'D', label: 'Bin D', desc: 'Earth & Warm',    colors: ['beige', 'brown', 'tan', 'red', 'orange'], bg: '#fdf5ec', border: '#d4a96a' },
-  { id: 'E', label: 'Bin E', desc: 'Mixed & Other',   colors: [],                                    bg: '#f4f5f7', border: '#c5cad4' },
+  { id: 'A', label: 'Bin A', desc: 'White / natural', colors: ['white', 'natural', 'cream', 'ivory'], bg: '#24231f', border: '#b7a879' },
+  { id: 'B', label: 'Bin B', desc: 'Blue / denim', colors: ['blue', 'navy', 'denim', 'indigo'], bg: '#202631', border: '#73879a' },
+  { id: 'C', label: 'Bin C', desc: 'Black / gray', colors: ['black', 'grey', 'gray', 'charcoal'], bg: '#242526', border: '#85817a' },
+  { id: 'D', label: 'Bin D', desc: 'Earth / warm', colors: ['beige', 'brown', 'tan', 'red', 'orange'], bg: '#2b241d', border: '#b17d4e' },
+  { id: 'E', label: 'Bin E', desc: 'Mixed / review', colors: [], bg: '#202820', border: '#77906e' },
 ]
 
 function assignBin(colorName) {
@@ -45,62 +46,94 @@ export default function BinFeed() {
 
   const current = lots[idx]
   const currentBin = current ? assignBin(current.color_name) : null
+  const assignedCount = Object.values(binCounts).reduce((sum, count) => sum + count, 0)
+  const recentLots = lots.slice(0, idx + 1).reverse().slice(0, 8)
 
   return (
-    <div className="binfeed">
-      <h1 className="binfeed-title">Live Bin Assignment</h1>
-      <p className="subtitle">Pieces detected by camera — place each in the indicated bin.</p>
-
-      {current ? (
-        <div className={`binfeed-current ${flash ? 'binfeed-flash' : ''}`}>
-          <div className="binfeed-piece">
-            <div className="binfeed-swatch" style={{ background: current.color_hex }} />
-            <div>
-              <div className="binfeed-piece-name">{current.color_name.toUpperCase()} · {current.fabric_type}</div>
-              <div className="binfeed-piece-meta">{current.composition} · {current.piece_count} pieces</div>
-            </div>
+    <div className="factory-app factory-app--wide">
+      <FactoryHeader />
+      <main className="fx-main fx-main--wide">
+        <section className="binfeed">
+          <div className="fx-intro binfeed-head">
+            <span className="fx-eyebrow">Live feed</span>
+            <h1 className="fx-title">Bin feed</h1>
           </div>
-          <div className="binfeed-arrow">→</div>
-          <div className="binfeed-bin-target" style={{ background: currentBin.bg, borderColor: currentBin.border }}>
-            <div className="binfeed-bin-id">{currentBin.label}</div>
-            <div className="binfeed-bin-desc">{currentBin.desc}</div>
-          </div>
-        </div>
-      ) : (
-        <div className="binfeed-waiting">Waiting for camera feed…</div>
-      )}
 
-      <div className="binfeed-bins">
-        {BINS.map(bin => (
-          <div
-            key={bin.id}
-            className={`binfeed-bin-card ${currentBin?.id === bin.id && flash ? 'binfeed-bin-active' : ''}`}
-            style={{ background: bin.bg, borderColor: bin.border }}
-          >
-            <div className="binfeed-bin-card-id">{bin.label}</div>
-            <div className="binfeed-bin-card-desc">{bin.desc}</div>
-            <div className="binfeed-bin-card-count">{binCounts[bin.id] || 0} pieces</div>
-          </div>
-        ))}
-      </div>
-
-      <div className="binfeed-log">
-        <h3>Recent assignments</h3>
-        <div className="binfeed-log-list">
-          {lots.slice(0, idx + 1).reverse().slice(0, 8).map((lot, i) => {
-            const bin = assignBin(lot.color_name)
-            return (
-              <div key={i} className="binfeed-log-row">
-                <div className="binfeed-log-swatch" style={{ background: lot.color_hex }} />
-                <span>{lot.color_name} {lot.fabric_type}</span>
-                <span className="binfeed-log-bin" style={{ background: bin.bg, borderColor: bin.border }}>
-                  {bin.label}
-                </span>
+          {current ? (
+            <section className={`binfeed-current ${flash ? 'binfeed-flash' : ''}`} aria-live="polite">
+              <div className="binfeed-piece">
+                <span className="binfeed-label">Current lot</span>
+                <div className="binfeed-piece-main">
+                  <div className="binfeed-swatch" style={{ background: current.color_hex }} />
+                  <div>
+                    <div className="binfeed-piece-name">{capitalize(current.color_name)} - {current.fabric_type}</div>
+                    <div className="binfeed-piece-meta">{current.composition} - {current.piece_count} pieces</div>
+                  </div>
+                </div>
               </div>
-            )
-          })}
-        </div>
-      </div>
+              <div className="binfeed-route" aria-hidden="true" />
+              <div className="binfeed-bin-target" style={{ background: currentBin.bg, borderColor: currentBin.border }}>
+                <span className="binfeed-label">Send to</span>
+                <div className="binfeed-bin-id">{currentBin.label}</div>
+                <div className="binfeed-bin-desc">{currentBin.desc}</div>
+              </div>
+            </section>
+          ) : (
+            <section className="binfeed-empty">
+              <h2>No available lots yet</h2>
+              <p>Scan a table first. New groups will appear here as soon as they are listed.</p>
+            </section>
+          )}
+
+          <section className="binfeed-board">
+            <div className="binfeed-section-head">
+              <h2>Floor bins</h2>
+              <span>{assignedCount} assigned this session</span>
+            </div>
+            <div className="binfeed-bins">
+              {BINS.map(bin => (
+                <div
+                  key={bin.id}
+                  className={`binfeed-bin-card ${currentBin?.id === bin.id && flash ? 'binfeed-bin-active' : ''}`}
+                  style={{ background: bin.bg, borderColor: bin.border }}
+                >
+                  <div className="binfeed-bin-card-id">{bin.label}</div>
+                  <div className="binfeed-bin-card-desc">{bin.desc}</div>
+                  <div className="binfeed-bin-card-count">{binCounts[bin.id] || 0}</div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="binfeed-log">
+            <div className="binfeed-section-head">
+              <h2>Recent assignments</h2>
+              <span>Latest 8 lots</span>
+            </div>
+            <div className="binfeed-log-list">
+              {recentLots.length ? recentLots.map((lot, i) => {
+                const bin = assignBin(lot.color_name)
+                return (
+                  <div key={`${lot.id}-${i}`} className="binfeed-log-row">
+                    <div className="binfeed-log-swatch" style={{ background: lot.color_hex }} />
+                    <span>{capitalize(lot.color_name)} {lot.fabric_type}</span>
+                    <span className="binfeed-log-bin" style={{ background: bin.bg, borderColor: bin.border }}>
+                      {bin.label}
+                    </span>
+                  </div>
+                )
+              }) : (
+                <div className="binfeed-log-empty">Assignments will appear here after the first piece cycles.</div>
+              )}
+            </div>
+          </section>
+        </section>
+      </main>
     </div>
   )
+}
+
+function capitalize(s) {
+  if (!s) return ''
+  return s.charAt(0).toUpperCase() + s.slice(1)
 }
