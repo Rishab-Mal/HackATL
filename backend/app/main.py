@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", "..", ".env"))
 
 from .database import SessionLocal, init_db
-from .routers import factory, lots, marketplace, vision
+from .routers import lots, marketplace, vision
 from .routers import chat, auth, admin
 from .seed import seed_data
 
@@ -21,7 +21,6 @@ app.add_middleware(
 )
 
 app.include_router(vision.router)
-app.include_router(factory.router)
 app.include_router(lots.router)
 app.include_router(marketplace.router)
 app.include_router(marketplace.impact_router)

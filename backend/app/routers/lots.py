@@ -38,16 +38,12 @@ def _enrich(lot: models.Lot) -> schemas.LotOut:
         status=lot.status,
         claimed_by=lot.claimed_by,
         claimed_at=lot.claimed_at,
-        factory_record_id=lot.factory_record_id,
         created_at=lot.created_at,
     )
 
 
 @router.post("", response_model=schemas.LotOut)
 def create_lot(lot: schemas.LotCreate, db: Session = Depends(get_db)):
-    if lot.factory_record_id is not None and not db.get(models.FactoryRecord, lot.factory_record_id):
-        raise HTTPException(status_code=404, detail="Factory record not found")
-
     base_price = lot.price_usd if lot.price_usd > 0 else calculate_base_price(
         fabric_type=lot.fabric_type,
         composition=lot.composition,

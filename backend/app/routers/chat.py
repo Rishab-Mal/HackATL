@@ -17,7 +17,7 @@ The app has 4 pages:
 - Marketplace: Available lots alongside buyer profiles (recyclers and makers). Match lots to the right buyer and claim them.
 - Impact Dashboard: Running totals — fabric diverted from landfill, CO2 saved, water saved, lots claimed.
 
-The platform is piloting with Carter's suppliers. Every lot traces back to a factory production record so buyers know exactly what fabric they're getting.
+The platform is piloting with Carter's suppliers. Every lot is created straight from a camera scan — computer vision identifies the fabric type, composition, color, and piece count — so buyers know exactly what they're getting.
 
 Be concise, warm, and helpful. Guide users through the app, explain features, and answer questions about fabric recycling or the platform."""
 

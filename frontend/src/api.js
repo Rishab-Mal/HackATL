@@ -27,20 +27,8 @@ export function detectScrap(file) {
 }
 
 // ---------------------------------------------------------------------------
-// Factory records + lots (Person 2)
+// Lots (Person 2)
 // ---------------------------------------------------------------------------
-
-export function getFactoryRecords() {
-  return request('/factory-records')
-}
-
-export function createFactoryRecord(record) {
-  return request('/factory-records', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(record),
-  })
-}
 
 export function getLots(filters = {}) {
   const params = new URLSearchParams()

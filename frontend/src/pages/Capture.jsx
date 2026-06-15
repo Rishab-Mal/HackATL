@@ -597,7 +597,6 @@ function buildLotPayload(group) {
     piece_count: group.piece_count,
     weight_kg: group.estimated_weight_g ? Number((group.estimated_weight_g / 1000).toFixed(3)) : 0,
     price_usd: 0, // let the backend auto-price (see routers/lots.py:create_lot)
-    factory_record_id: null,
   }
 }
 

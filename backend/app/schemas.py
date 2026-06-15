@@ -84,25 +84,6 @@ class DetectResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Factory records (Person 2)
-# ---------------------------------------------------------------------------
-
-
-class FactoryRecordCreate(BaseModel):
-    batch_name: str
-    fabric_type: str
-    composition: str
-    notes: Optional[str] = ""
-
-
-class FactoryRecordOut(FactoryRecordCreate):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: int
-    created_at: datetime
-
-
-# ---------------------------------------------------------------------------
 # Lots (Person 2)
 # ---------------------------------------------------------------------------
 
@@ -117,7 +98,6 @@ class LotCreate(BaseModel):
     piece_count: int = 0
     weight_kg: float = 0.0
     price_usd: float = 0.0
-    factory_record_id: Optional[int] = None
 
 
 class LotOut(BaseModel):
@@ -141,7 +121,6 @@ class LotOut(BaseModel):
     status: str
     claimed_by: Optional[str] = None
     claimed_at: Optional[datetime] = None
-    factory_record_id: Optional[int] = None
     created_at: datetime
 
 
