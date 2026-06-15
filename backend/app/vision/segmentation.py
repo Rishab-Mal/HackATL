@@ -117,6 +117,8 @@ def detect_pieces(image_bytes: bytes) -> dict:
     if not pieces:
         raise ValueError("No measurable fabric pieces found")
 
+    # Run the vision LLM, then group on its material result so the bins the
+    # worker sees are correct from the first paint (no premature guesses).
     material_result = classify_materials(
         image_bgr,
         pieces,
@@ -139,23 +141,12 @@ def detect_pieces(image_bytes: bytes) -> dict:
         piece["weight_label"] = weight_label(piece.get("estimated_weight_g"))
         piece["crop_data_url"] = _piece_crop_data_url(image_bgr, piece)
 
+    warnings.extend(_scale_warnings(scale))
+
     groups = assign_sort_groups(pieces)
     annotated = render_annotated_image(image_bgr, pieces, groups)
     rows = piece_table(pieces)
-
     response_pieces = [_public_piece(piece) for piece in pieces]
-
-    if scale["scale_method"] == "fallback":
-        warnings.append(
-            "No trusted ArUco marker or 0-5 cm ruler was detected; area and weight use a fallback table-view estimate."
-        )
-    elif scale["scale_method"] == "ruler":
-        warnings.append("ArUco marker was not decoded, so the visible 0-5 cm ruler was used for scale.")
-    elif scale["scale_method"] == "marker_like":
-        warnings.append("ArUco marker was not decoded; a strict marker-like square fallback was used for scale.")
-
-    if any(obj.get("type") == "marker_like" for obj in scale["reference_objects"]) and scale["scale_method"] != "aruco":
-        warnings.append("A marker-like square was excluded from fabric masks but could not be decoded as a trusted ArUco marker.")
 
     return {
         "image_width": w,
@@ -175,6 +166,22 @@ def detect_pieces(image_bytes: bytes) -> dict:
         "llm_model": material_result.get("model"),
         "warnings": warnings,
     }
+
+
+def _scale_warnings(scale):
+    messages = []
+    if scale["scale_method"] == "fallback":
+        messages.append(
+            "No trusted ArUco marker or 0-5 cm ruler was detected; area and weight use a fallback table-view estimate."
+        )
+    elif scale["scale_method"] == "ruler":
+        messages.append("ArUco marker was not decoded, so the visible 0-5 cm ruler was used for scale.")
+    elif scale["scale_method"] == "marker_like":
+        messages.append("ArUco marker was not decoded; a strict marker-like square fallback was used for scale.")
+
+    if any(obj.get("type") == "marker_like" for obj in scale["reference_objects"]) and scale["scale_method"] != "aruco":
+        messages.append("A marker-like square was excluded from fabric masks but could not be decoded as a trusted ArUco marker.")
+    return messages
 
 
 def _decode_image(image_bytes: bytes, max_dimension: int):

@@ -33,7 +33,8 @@ class Settings:
         ).strip()
         models = os.getenv(
             "OPENROUTER_VISION_MODELS",
-            "anthropic/claude-sonnet-4.6,google/gemini-2.5-flash,openai/gpt-4o",
+            # Fast model first; the others stay as quality fallbacks if it fails.
+            "google/gemini-2.5-flash,anthropic/claude-sonnet-4.6,openai/gpt-4o",
         )
         self.openrouter_vision_models = [m.strip() for m in models.split(",") if m.strip()]
         self.aruco_marker_size_cm = float(os.getenv("ARUCO_MARKER_SIZE_CM", "5.0"))

@@ -3,11 +3,12 @@
 from typing import Optional
 
 import cv2
-from fastapi import APIRouter, File, HTTPException, Query, Response, UploadFile
+from fastapi import APIRouter, BackgroundTasks, File, HTTPException, Query, Response, UploadFile
 from fastapi.responses import HTMLResponse
 
 from ..config import get_settings
 from ..schemas import DetectResponse
+from ..vision.replicate_sam import warmup_replicate
 from ..vision.segmentation import detect_pieces
 
 router = APIRouter(prefix="/api/vision", tags=["vision"])
@@ -26,6 +27,20 @@ async def detect(image: UploadFile = File(...)):
         return detect_pieces(contents)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/warmup")
+async def warmup(background_tasks: BackgroundTasks):
+    """Boot the Replicate SAM container in the background so the next real scan
+    skips the cold-start delay. Fire-and-forget: returns immediately."""
+
+    settings = get_settings()
+    if not settings.replicate_api_token:
+        return {"status": "skipped"}
+    background_tasks.add_task(
+        warmup_replicate, settings.replicate_api_token, settings.replicate_sam_model
+    )
+    return {"status": "warming"}
 
 
 @router.get("/lab", response_class=HTMLResponse)
