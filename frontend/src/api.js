@@ -88,3 +88,11 @@ export function claimLot(lotId, buyerName) {
 export function getImpact() {
   return request('/impact')
 }
+
+export function delistLot(lotId) {
+  return request(`/lots/${lotId}/delist`, { method: 'PATCH' })
+}
+
+export function relistLot(lotId) {
+  return request(`/lots/${lotId}/relist`, { method: 'PATCH' })
+}

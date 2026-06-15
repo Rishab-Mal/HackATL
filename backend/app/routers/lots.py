@@ -137,3 +137,29 @@ def claim_lot(lot_id: int, claim: schemas.LotClaim, db: Session = Depends(get_db
     db.commit()
     db.refresh(lot)
     return _enrich(lot)
+
+
+@router.patch("/{lot_id}/delist", response_model=schemas.LotOut)
+def delist_lot(lot_id: int, db: Session = Depends(get_db)):
+    lot = db.get(models.Lot, lot_id)
+    if not lot:
+        raise HTTPException(status_code=404, detail="Lot not found")
+    if lot.status == "claimed":
+        raise HTTPException(status_code=400, detail="Cannot delist a claimed lot")
+    lot.status = "unlisted"
+    db.commit()
+    db.refresh(lot)
+    return _enrich(lot)
+
+
+@router.patch("/{lot_id}/relist", response_model=schemas.LotOut)
+def relist_lot(lot_id: int, db: Session = Depends(get_db)):
+    lot = db.get(models.Lot, lot_id)
+    if not lot:
+        raise HTTPException(status_code=404, detail="Lot not found")
+    if lot.status != "unlisted":
+        raise HTTPException(status_code=400, detail="Lot is not unlisted")
+    lot.status = "available"
+    db.commit()
+    db.refresh(lot)
+    return _enrich(lot)
