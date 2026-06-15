@@ -53,6 +53,14 @@ export function createLot(lot) {
   })
 }
 
+export function createScanRun(scanRun) {
+  return request('/lots/scan-runs', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(scanRun),
+  })
+}
+
 // ---------------------------------------------------------------------------
 // Marketplace + impact (Person 4)
 // ---------------------------------------------------------------------------
@@ -85,6 +93,14 @@ export function delistLot(lotId) {
 
 export function relistLot(lotId) {
   return request(`/lots/${lotId}/relist`, { method: 'PATCH' })
+}
+
+export function deleteLot(lotId) {
+  return request(`/lots/${lotId}`, { method: 'DELETE' })
+}
+
+export function getAdminMetrics() {
+  return request('/admin/metrics')
 }
 
 // ---------------------------------------------------------------------------

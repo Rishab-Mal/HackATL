@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { createLot, detectScrap, resetDemoData } from '../api.js'
+import { createLot, createScanRun, detectScrap, resetDemoData } from '../api.js'
 import { useAuth } from '../context/AuthContext.jsx'
 import { ReweaveLogo } from '../components/ReweaveMark.jsx'
 import DestinationAnalysis from '../components/DestinationAnalysis.jsx'
@@ -77,10 +77,15 @@ export default function Capture() {
     autoSavedRef.current = true
     const groups = (res && res.groups) || []
     if (groups.length === 0) return
-    Promise.allSettled(groups.map((g) => createLot(buildLotPayload(g, res)))).then((results) => {
-      const failed = results.filter((r) => r.status === 'rejected')
-      if (failed.length) console.warn('Some lots could not be listed:', failed)
+    createScanRun(buildScanRunPayload(res))
+      .then((scanRun) => Promise.allSettled(
+        groups.map((g) => createLot({ ...buildLotPayload(g, res), scan_run_id: scanRun.id }))
+      ))
+      .then((results) => {
+        const failed = results.filter((r) => r.status === 'rejected')
+        if (failed.length) console.warn('Some lots could not be listed:', failed)
       })
+      .catch((err) => console.warn('Scan run could not be saved:', err))
   }
 
   function finishBatch() {
@@ -669,6 +674,42 @@ function buildLotPayload(group, res) {
     piece_count: count,
     weight_kg: weightG ? Number((weightG / 1000).toFixed(3)) : 0,
     price_usd: 0, // let the backend auto-price (see routers/lots.py:create_lot)
+  }
+}
+
+function buildScanRunPayload(res) {
+  const groups = Array.isArray(res?.groups) ? res.groups : []
+  const pieces = Array.isArray(res?.pieces) ? res.pieces : []
+  const weightKg = groups.reduce((sum, group) => sum + ((Number(group.estimated_weight_g) || 0) / 1000), 0)
+  const carbonKg = weightKg * 2.1
+  const waterL = weightKg * 2700
+
+  return {
+    annotated_image_data_url: res?.annotated_image_data_url || null,
+    image_width: Number(res?.image_width) || 0,
+    image_height: Number(res?.image_height) || 0,
+    piece_count: pieces.length,
+    group_count: groups.length,
+    total_weight_kg: Number(weightKg.toFixed(4)),
+    total_carbon_saved_kg: Number(carbonKg.toFixed(4)),
+    total_water_saved_l: Number(waterL.toFixed(2)),
+    summary: {
+      scale_method: res?.scale_method || null,
+      scale_confidence: res?.scale_confidence || null,
+      segmentation_method: res?.segmentation_method || null,
+      llm_model: res?.llm_model || null,
+      warnings: Array.isArray(res?.warnings) ? res.warnings.slice(0, 4) : [],
+      groups: groups.map((group, i) => ({
+        key: group.sort_group_id || `${group.color_name}-${i}`,
+        sort_group_id: group.sort_group_id || String.fromCharCode(65 + i),
+        color_name: group.color_name,
+        color_hex: group.color_hex,
+        fabric_type: group.fabric_type_guess || 'Unspecified',
+        composition: group.composition_guess || 'Unspecified',
+        piece_count: Number(group.piece_count) || 0,
+        weight_g: Number(group.estimated_weight_g) || 0,
+      })),
+    },
   }
 }
 

@@ -1,442 +1,398 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import {
-  Card, Grid, Flex, Col,
-  Metric, Text, Title, Subtitle, Bold,
-  Badge, BadgeDelta,
-  AreaChart, BarChart, DonutChart,
-  ProgressBar, BarList,
-  List, ListItem,
-  Divider,
-} from '@tremor/react'
-import { formatMoney, formatWeightKg } from '../../utils/formatters.js'
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts'
+import { deleteLot, delistLot, getAdminMetrics, relistLot } from '../../api.js'
+import { formatMoney, formatUnitPrice, formatWeightKg } from '../../utils/formatters.js'
 
-const valueUSD = v => formatMoney(v)
-const valueKg = v => formatWeightKg(v)
+const STATUS_COLORS = {
+  Available: '#166534',
+  Claimed: '#111111',
+  Unlisted: '#b91c1c',
+}
 
-function SectionHeader({ title, badge }) {
+const FABRIC_COLORS = ['#166534', '#2563eb', '#7c3aed', '#d97706', '#0f766e', '#b91c1c']
+
+export default function AdminDashboard() {
+  const [metrics, setMetrics] = useState(null)
+  const [error, setError] = useState(null)
+  const [acting, setActing] = useState({})
+
+  function refresh() {
+    getAdminMetrics()
+      .then((data) => {
+        setMetrics(data)
+        setError(null)
+      })
+      .catch((err) => setError(err.message))
+  }
+
+  useEffect(refresh, [])
+
+  async function runLotAction(lot, action) {
+    const key = `${action}-${lot.id}`
+    if (action === 'delete' && !window.confirm(`Delete ${lot.name}? This removes it from inventory and analytics.`)) return
+    setActing((prev) => ({ ...prev, [key]: true }))
+    try {
+      if (action === 'delist') await delistLot(lot.id)
+      if (action === 'relist') await relistLot(lot.id)
+      if (action === 'delete') await deleteLot(lot.id)
+      refresh()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setActing((prev) => ({ ...prev, [key]: false }))
+    }
+  }
+
+  if (error && !metrics) return <div className="error">{error}</div>
+  if (!metrics) return <div className="dash-loading"><div className="dash-spinner" />Loading admin dashboard...</div>
+
+  const latestRun = metrics.recent_runs?.[0]
+  const runHistory = metrics.run_history || []
+  const fabricRows = metrics.fabric_stats || []
+  const statusMix = (metrics.status_mix || []).filter((item) => item.value > 0)
+  const hasData = metrics.has_data
+  const topActionLots = [...(metrics.quick_action_lots || [])]
+    .sort((a, b) => (b.current_price_usd || 0) - (a.current_price_usd || 0))
+    .slice(0, 5)
+  const hiddenActionCount = Math.max(0, (metrics.quick_action_lots || []).length - topActionLots.length)
+
   return (
-    <div className="section-header">
-      <h2>{title}</h2>
-      {badge && <span className="section-badge">{badge}</span>}
+    <div className="admin-command">
+      {error && <div className="error">{error}</div>}
+
+      <section className="admin-hero">
+        <div className="admin-hero-copy">
+          <span className="admin-eyebrow">Reweave admin command center</span>
+          <h1>Turn one table scan into inventory, impact, and action.</h1>
+          <p>
+            This dashboard is built for the hackathon demo flow: scan a few fabric pieces,
+            publish lots automatically, then show judges the evidence, business value, and
+            environmental impact within seconds.
+          </p>
+        </div>
+        <div className="admin-hero-panel">
+          <div className="admin-live-row">
+            Live database
+          </div>
+          <div className="admin-hero-number">{metrics.total_lots}</div>
+          <div className="admin-hero-label">lots in the system</div>
+          <div className="admin-mini-grid">
+            <span>{metrics.total_pieces} pieces</span>
+            <span>{formatWeightKg(metrics.total_weight_kg)}</span>
+            <span>{formatMoney(metrics.inventory_value)} live value</span>
+          </div>
+        </div>
+      </section>
+
+      {!hasData && <EmptyDemoState />}
+
+      <section className="admin-kpi-grid" aria-label="Operational summary">
+        <Kpi label="Live Inventory Value" value={formatMoney(metrics.inventory_value)} note={`${metrics.available_lots} available lots`} />
+        <Kpi label="Material Diverted" value={formatWeightKg(metrics.total_weight_kg)} note={`${metrics.total_pieces} detected pieces`} />
+        <Kpi label="CO2 Prevented" value={formatWeightKg(metrics.total_carbon_saved_kg)} note={`${metrics.carbon_equiv_car_miles} driving miles avoided`} />
+        <Kpi label="Revenue Claimed" value={formatMoney(metrics.revenue)} note={`${metrics.claim_rate_pct}% sell-through`} />
+      </section>
+
+      <section className="admin-section admin-runs-section">
+        <SectionTitle eyebrow="Latest scan" title="Run Summary" action={<Link to="/admin/lots">Open inventory</Link>} />
+        <div className="admin-run-layout">
+          <RunPreview run={latestRun} />
+          <div className="admin-run-list">
+            {(metrics.recent_runs || []).slice(0, 5).map((run) => (
+              <article className="admin-run-card" key={run.id || run.created_at}>
+                <div>
+                  <div className="admin-run-card-title">{run.label}</div>
+                  <div className="admin-run-card-meta">
+                    {run.group_count} lots · {run.piece_count} pieces · {formatWeightKg(run.total_weight_kg)}
+                  </div>
+                </div>
+                <div className="admin-run-card-value">{formatMoney(run.inventory_value)}</div>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="admin-section">
+        <SectionTitle eyebrow="Admin controls" title="Highest-Value Inventory Actions" action={<Link to="/factory">Run new scan</Link>} />
+        <div className="admin-action-grid">
+          <div className="admin-action-panel">
+            <div className="admin-action-summary">
+              <strong>{topActionLots.length} priority lots</strong>
+              <span>Sorted by current value so this page stays focused during the judge walkthrough.</span>
+            </div>
+            {(metrics.recommended_actions || []).map((item) => (
+              <div className={`admin-action-note admin-action-note--${item.tone}`} key={item.title}>
+                <strong>{item.title}</strong>
+                <span>{item.detail}</span>
+              </div>
+            ))}
+          </div>
+          <div className="admin-lot-actions">
+            {topActionLots.map((lot) => (
+              <LotActionRow
+                key={lot.id}
+                lot={lot}
+                acting={acting}
+                onAction={runLotAction}
+              />
+            ))}
+            {topActionLots.length === 0 && (
+              <div className="admin-empty-panel">Scan a table to create actionable lots here.</div>
+            )}
+            {hiddenActionCount > 0 && (
+              <Link className="admin-more-actions" to="/admin/lots">
+                Review {hiddenActionCount} more lots in full inventory
+              </Link>
+            )}
+          </div>
+        </div>
+      </section>
+
+      <section className="admin-impact-band">
+        <div>
+          <span className="admin-eyebrow">Impact preview</span>
+          <h2>Environmental gains from the current inventory</h2>
+          <p>Scaled for grams, not tons, so the numbers still read cleanly after one small scan.</p>
+          <Link className="admin-impact-link" to="/admin/impact">Open impact report</Link>
+        </div>
+        <div className="admin-impact-metrics">
+          <ImpactMetric label="Water saved" value={formatWater(metrics.total_water_saved_l)} detail={`${metrics.water_equiv_showers} showers`} />
+          <ImpactMetric label="Energy avoided" value={`${formatCompact(metrics.energy_saved_kwh)} kWh`} detail={`${metrics.water_equiv_bottles.toLocaleString()} bottles of water`} />
+          <ImpactMetric label="Diversion target" value={`${metrics.diversion_pct}%`} detail={`${formatWeightKg(metrics.diversion_target_kg)} pilot goal`} />
+        </div>
+      </section>
+
+      <section className="admin-section admin-analytics">
+        <SectionTitle eyebrow="Short-horizon analytics" title="Works With One Scan" />
+        <div className="admin-chart-grid">
+          <ChartCard title="Fabric mix by weight">
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={fabricRows} margin={{ top: 10, right: 6, left: -18, bottom: 0 }}>
+                <CartesianGrid stroke="#eeeeee" vertical={false} />
+                <XAxis dataKey="fabric_type" tickLine={false} axisLine={false} fontSize={11} />
+                <YAxis tickLine={false} axisLine={false} fontSize={11} tickFormatter={(v) => `${v * 1000}g`} />
+                <Tooltip formatter={(value) => formatWeightKg(Number(value))} labelStyle={{ color: '#111' }} />
+                <Bar dataKey="weight_kg" radius={[4, 4, 0, 0]}>
+                  {fabricRows.map((_, i) => <Cell key={i} fill={FABRIC_COLORS[i % FABRIC_COLORS.length]} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartCard>
+
+          <ChartCard title="Run ramp">
+            <ResponsiveContainer width="100%" height={220}>
+              <AreaChart data={runHistory} margin={{ top: 10, right: 6, left: -18, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="runWeight" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#166534" stopOpacity={0.28} />
+                    <stop offset="95%" stopColor="#166534" stopOpacity={0.02} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid stroke="#eeeeee" vertical={false} />
+                <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={11} />
+                <YAxis tickLine={false} axisLine={false} fontSize={11} tickFormatter={(v) => `${v}g`} />
+                <Tooltip formatter={(value, name) => [name === 'weight_g' ? `${value} g` : value, name === 'weight_g' ? 'Weight' : name]} />
+                <Area type="monotone" dataKey="weight_g" stroke="#166534" fill="url(#runWeight)" strokeWidth={2} dot={{ r: 3 }} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </ChartCard>
+
+          <ChartCard title="Inventory status">
+            <ResponsiveContainer width="100%" height={220}>
+              <PieChart>
+                <Pie data={statusMix} dataKey="value" nameKey="name" innerRadius={58} outerRadius={82} paddingAngle={3}>
+                  {statusMix.map((entry) => <Cell key={entry.name} fill={STATUS_COLORS[entry.name]} />)}
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
+            <div className="admin-status-legend">
+              {statusMix.map((entry) => (
+                <span key={entry.name}><i style={{ background: STATUS_COLORS[entry.name] }} />{entry.name}: {entry.value}</span>
+              ))}
+            </div>
+          </ChartCard>
+        </div>
+      </section>
     </div>
   )
 }
 
-export default function AdminDashboard() {
-  const [m, setM] = useState(null)
-  const [error, setError] = useState(null)
-
-  useEffect(() => {
-    const token = localStorage.getItem('reweave_token')
-    fetch('/api/admin/metrics', {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then(r => r.json())
-      .then(setM)
-      .catch(e => setError(e.message))
-  }, [])
-
-  if (error) return <div className="error">{error}</div>
-  if (!m) return <div className="dash-loading"><div className="dash-spinner" />Loading dashboard…</div>
-
-  // ── Chart data ─────────────────────────────────────
-  const revenueData = m.revenue_trend.map(d => ({
-    date: d.date,
-    Revenue: d.revenue,
-  }))
-
-  const fabricBarData = m.fabric_stats.slice(0, 8).map(f => ({
-    name: f.fabric_type.replace(/\/.*/, '').replace(' Blend', '').trim(),
-    Revenue: f.revenue,
-  }))
-
-  const sellThroughData = [
-    { name: 'Sold', value: m.claimed_lots },
-    { name: 'Available', value: m.available_lots },
-  ]
-
-  const impactTrendData = m.impact_trend.map(d => ({
-    date: d.date,
-    'CO₂ Saved (kg)': d.carbon_kg,
-  }))
-
-  const fabricImpactData = m.fabric_impact.map(f => ({
-    name: f.fabric,
-    'CO₂ (kg)': f.carbon_kg,
-  }))
-
-  const topBuyersData = m.top_buyers.map(b => ({
-    name: b.name,
-    value: b.value,
-  }))
-
+function Kpi({ label, value, note }) {
   return (
-    <div className="dash">
-      {/* ── Page header ── */}
-      <div className="dash-header">
-        <div>
-          <h1 className="dash-title">Operations Dashboard</h1>
-          <p className="dash-subtitle">Reweave · Carter's Make &amp; Remake Pilot</p>
-        </div>
-        <Badge color="green" size="sm">Live</Badge>
+    <article className="admin-kpi">
+      <span>{label}</span>
+      <strong>{value}</strong>
+      <small>{note}</small>
+    </article>
+  )
+}
+
+function SectionTitle({ eyebrow, title, action }) {
+  return (
+    <div className="admin-section-title">
+      <div>
+        <span className="admin-eyebrow">{eyebrow}</span>
+        <h2>{title}</h2>
       </div>
-
-      {/* ── Diversion Progress — Tremor ProgressBar ── */}
-      <Card className="mb-4">
-        <Flex alignItems="start">
-          <div>
-            <Text>Fabric Waste Diverted from Landfill</Text>
-            <Metric className="mt-1">{formatWeightKg(m.total_weight_kg)}</Metric>
-          </div>
-          <BadgeDelta deltaType="increase" size="sm">
-            {m.diversion_pct}% of goal
-          </BadgeDelta>
-        </Flex>
-        <ProgressBar value={m.diversion_pct} color="green" className="mt-3" />
-        <Flex className="mt-2">
-          <Text><Bold>{m.diversion_pct}% complete</Bold></Text>
-          <Text>{formatWeightKg(Math.max(0, m.diversion_target_kg - m.total_weight_kg))} to {formatWeightKg(m.diversion_target_kg)} goal</Text>
-        </Flex>
-      </Card>
-
-      {/* ── Carter's Pilot ── */}
-      <div className="carters-card">
-        <div className="carters-card-header">
-          <div>
-            <div className="carters-card-eyebrow">Supplier Pilot</div>
-            <div className="carters-card-title">Carter's Circular Supply</div>
-          </div>
-          <div className="carters-card-badge">LIVE PILOT</div>
-        </div>
-        <div className="carters-card-stats">
-          <div className="carters-stat">
-            <div className="carters-stat-value">{m.carters_lots}</div>
-            <div className="carters-stat-label">Lots Claimed</div>
-          </div>
-          <div className="carters-stat">
-            <div className="carters-stat-value">{formatWeightKg(m.carters_weight_kg)}</div>
-            <div className="carters-stat-label">Fabric Diverted</div>
-          </div>
-          <div className="carters-stat">
-            <div className="carters-stat-value">{formatMoney(m.carters_revenue)}</div>
-            <div className="carters-stat-label">Revenue Generated</div>
-          </div>
-          <div className="carters-stat">
-            <div className="carters-stat-value">{m.carters_carbon_kg} kg</div>
-            <div className="carters-stat-label">CO₂ Saved</div>
-          </div>
-        </div>
-        <div className="carters-card-footer">
-          Offcuts from Carter's Atlanta supplier → sorted by Reweave → claimed by recyclers
-        </div>
-      </div>
-
-      {/* ── Revenue & Inventory — Tremor Cards + BadgeDelta ── */}
-      <SectionHeader title="Revenue & Inventory" />
-      <Grid numItemsSm={2} numItemsLg={4} className="gap-3 mb-4">
-        <Card>
-          <Text>Total Revenue</Text>
-          <Metric className="mt-1">{valueUSD(m.revenue)}</Metric>
-          <Flex className="mt-2">
-            <Text className="text-xs text-gray-500">From claimed lots</Text>
-            <BadgeDelta deltaType="increase" size="xs">Live</BadgeDelta>
-          </Flex>
-        </Card>
-        <Card>
-          <Text>Gross Profit</Text>
-          <Metric className="mt-1">{valueUSD(m.gross_profit)}</Metric>
-          <Flex className="mt-2">
-            <Text className="text-xs text-gray-500">{m.profit_margin_pct}% margin</Text>
-            <BadgeDelta deltaType="increase" size="xs">+{m.profit_margin_pct}%</BadgeDelta>
-          </Flex>
-        </Card>
-        <Card>
-          <Text>Inventory Value</Text>
-          <Metric className="mt-1">{valueUSD(m.inventory_value)}</Metric>
-          <Text className="mt-2 text-xs text-gray-500">After price decay</Text>
-        </Card>
-        <Card>
-          <Text>Est. Cost</Text>
-          <Metric className="mt-1">{valueUSD(m.estimated_cost)}</Metric>
-          <Text className="mt-2 text-xs text-gray-500">28% of revenue</Text>
-        </Card>
-      </Grid>
-
-      {/* ── Lot Performance — Tremor Cards ── */}
-      <SectionHeader title="Lot Performance" />
-      <Grid numItemsSm={3} numItemsLg={6} className="gap-3 mb-5">
-        <Card>
-          <Text>Total Lots</Text>
-          <Metric className="mt-1">{m.total_lots}</Metric>
-        </Card>
-        <Card>
-          <Text>Lots Sold</Text>
-          <Metric className="mt-1">{m.claimed_lots}</Metric>
-          <Badge color="green" size="xs" className="mt-2">Claimed</Badge>
-        </Card>
-        <Card>
-          <Text>In Inventory</Text>
-          <Metric className="mt-1">{m.available_lots}</Metric>
-          <Badge color="slate" size="xs" className="mt-2">Available</Badge>
-        </Card>
-        <Card>
-          <Text>Sell-Through</Text>
-          <Metric className="mt-1">{m.claim_rate_pct}%</Metric>
-          <BadgeDelta
-            deltaType={m.claim_rate_pct > 50 ? 'increase' : 'moderateIncrease'}
-            size="xs" className="mt-2"
-          >
-            {m.claim_rate_pct > 50 ? 'On track' : 'Growing'}
-          </BadgeDelta>
-        </Card>
-        <Card>
-          <Text>Avg Days to Sell</Text>
-          <Metric className="mt-1">{m.avg_days_to_claim}d</Metric>
-        </Card>
-        <Card>
-          <Text>Total Fabric</Text>
-          <Metric className="mt-1">{formatWeightKg(m.total_weight_kg)}</Metric>
-        </Card>
-      </Grid>
-
-      {/* ── Charts row ── */}
-      <Grid numItemsLg={3} className="gap-3 mb-4">
-        {/* Revenue Trend — Tremor AreaChart */}
-        <Col numColSpanLg={2}>
-          <Card>
-            <Title>Revenue Trend — Last 14 Days</Title>
-            <AreaChart
-              className="mt-4 h-48"
-              data={revenueData}
-              index="date"
-              categories={['Revenue']}
-              colors={['green']}
-              valueFormatter={valueUSD}
-              showLegend={false}
-              showGridLines={true}
-            />
-          </Card>
-        </Col>
-
-        {/* Sell-Through — Tremor DonutChart */}
-        <Card>
-          <Title>Sell-Through Rate</Title>
-          <DonutChart
-            className="mt-4 h-48"
-            data={sellThroughData}
-            category="value"
-            index="name"
-            colors={['green', 'slate']}
-            label={`${m.claim_rate_pct}%`}
-          />
-          <Flex className="mt-3 justify-center gap-4">
-            <Flex className="gap-1.5 items-center">
-              <span className="inline-block w-2.5 h-2.5 rounded-full bg-green-500" />
-              <Text className="text-xs">Sold ({m.claimed_lots})</Text>
-            </Flex>
-            <Flex className="gap-1.5 items-center">
-              <span className="inline-block w-2.5 h-2.5 rounded-full bg-slate-300" />
-              <Text className="text-xs">Available ({m.available_lots})</Text>
-            </Flex>
-          </Flex>
-        </Card>
-      </Grid>
-
-      {/* Revenue by Fabric — Tremor BarChart */}
-      <Card className="mb-4">
-        <Title>Revenue by Fabric Type</Title>
-        <BarChart
-          className="mt-4 h-52"
-          data={fabricBarData}
-          index="name"
-          categories={['Revenue']}
-          colors={['green']}
-          valueFormatter={valueUSD}
-          showLegend={false}
-          showGridLines={true}
-        />
-      </Card>
-
-      {/* ── Bottom panels ── */}
-      <Grid numItemsLg={2} className="gap-3 mb-4">
-        {/* Recent Sales — Tremor List */}
-        <Card>
-          <Flex>
-            <Title>Recent Sales</Title>
-            <Badge color="slate" size="sm">{m.activity_feed.length} latest</Badge>
-          </Flex>
-          <List className="mt-3">
-            {m.activity_feed.map((a, i) => (
-              <ListItem key={i}>
-                <Flex>
-                  <div>
-                    <Text><Bold>{a.lot_name}</Bold></Text>
-                    <Text className="text-xs">{a.buyer} · {formatWeightKg(a.weight_kg)}</Text>
-                  </div>
-                  <div className="text-right">
-                    <Text><Bold>{valueUSD(a.price)}</Bold></Text>
-                    <Text className="text-xs text-gray-400">{a.days_ago}d ago</Text>
-                  </div>
-                </Flex>
-              </ListItem>
-            ))}
-          </List>
-        </Card>
-
-        {/* Price Decay Alerts */}
-        <Card>
-          <Flex>
-            <Title>Price Decay Alerts</Title>
-            {m.decay_alert_count > 0 && (
-              <BadgeDelta deltaType="decrease" size="sm">{m.decay_alert_count} lots</BadgeDelta>
-            )}
-          </Flex>
-          {m.decay_alerts.length === 0 ? (
-            <Text className="mt-4 text-gray-400">No lots need attention.</Text>
-          ) : (
-            <List className="mt-3">
-              {m.decay_alerts.map((a, i) => (
-                <ListItem key={i}>
-                  <Flex>
-                    <div>
-                      <Text><Bold>{a.name}</Bold></Text>
-                      <Text className="text-xs">{a.days_listed} days listed</Text>
-                    </div>
-                    <div className="text-right">
-                      <Text><Bold>{formatMoney(a.current_price)}</Bold></Text>
-                      <BadgeDelta deltaType="decrease" size="xs">-{a.decay_pct}%</BadgeDelta>
-                    </div>
-                  </Flex>
-                </ListItem>
-              ))}
-            </List>
-          )}
-        </Card>
-      </Grid>
-
-      {/* ── Environmental Impact ── */}
-      <Card className="mb-4">
-        <Flex alignItems="start">
-          <div>
-            <Text className="text-green-700 font-semibold uppercase text-xs tracking-widest">
-              Sustainability Metrics
-            </Text>
-            <Title className="mt-1">Environmental Impact</Title>
-            <Text className="mt-1 max-w-lg">
-              Every kilogram of fabric diverted prevents raw-material extraction, dye processing,
-              and landfill methane emissions.
-            </Text>
-          </div>
-          <div className="flex gap-2 flex-shrink-0">
-            <div className="sdg-badge sdg-12">SDG 12<br/><span>Responsible</span></div>
-            <div className="sdg-badge sdg-6">SDG 6<br/><span>Water</span></div>
-            <div className="sdg-badge sdg-13">SDG 13<br/><span>Climate</span></div>
-          </div>
-        </Flex>
-
-        <Divider />
-
-        {/* Hero metrics — 4 Tremor Cards in a grid */}
-        <Grid numItemsSm={2} numItemsLg={4} className="gap-3 mb-4">
-          <Card decoration="top" decorationColor="green">
-            <Text>CO₂ Prevented</Text>
-            <Metric className="mt-1">{valueKg(m.total_carbon_saved_kg)}</Metric>
-            <BadgeDelta deltaType="increase" size="xs" className="mt-2">Diverted</BadgeDelta>
-          </Card>
-          <Card decoration="top" decorationColor="blue">
-            <Text>Water Conserved</Text>
-            <Metric className="mt-1">{m.total_water_saved_l.toLocaleString()} L</Metric>
-            <BadgeDelta deltaType="increase" size="xs" className="mt-2">Saved</BadgeDelta>
-          </Card>
-          <Card decoration="top" decorationColor="violet">
-            <Text>Fabric Diverted</Text>
-            <Metric className="mt-1">{valueKg(m.total_weight_kg)}</Metric>
-            <BadgeDelta deltaType="increase" size="xs" className="mt-2">From landfill</BadgeDelta>
-          </Card>
-          <Card decoration="top" decorationColor="orange">
-            <Text>Energy Saved</Text>
-            <Metric className="mt-1">{m.energy_saved_kwh} kWh</Metric>
-            <BadgeDelta deltaType="increase" size="xs" className="mt-2">Conserved</BadgeDelta>
-          </Card>
-        </Grid>
-
-        {/* Equivalency grid — 8 small Tremor Cards */}
-        <Grid numItemsSm={2} numItemsLg={4} className="gap-3 mb-5">
-          {[
-            { value: m.carbon_equiv_trees, label: 'Trees absorbing CO₂ for a year' },
-            { value: m.carbon_equiv_car_miles.toLocaleString(), label: 'Miles of driving avoided' },
-            { value: m.carbon_equiv_flights, label: 'Domestic flights offset' },
-            { value: m.carbon_equiv_phones.toLocaleString(), label: 'Phone charges powered' },
-            { value: m.water_equiv_showers.toLocaleString(), label: '8-minute showers' },
-            { value: m.water_equiv_bathtubs.toLocaleString(), label: 'Bathtubs of water' },
-            { value: m.water_equiv_bottles.toLocaleString(), label: '500 mL bottles' },
-            { value: m.energy_equiv_homes, label: 'Homes powered for a year' },
-          ].map((item, i) => (
-            <Card key={i}>
-              <Metric>{item.value}</Metric>
-              <Text className="mt-1">{item.label}</Text>
-            </Card>
-          ))}
-        </Grid>
-
-        {/* Impact trend — Tremor AreaChart */}
-        <Card>
-          <Title>Cumulative CO₂ Saved — Last 30 Days</Title>
-          <AreaChart
-            className="mt-4 h-44"
-            data={impactTrendData}
-            index="date"
-            categories={['CO₂ Saved (kg)']}
-            colors={['green']}
-            valueFormatter={valueKg}
-            showLegend={false}
-            showGridLines={true}
-          />
-        </Card>
-
-        {/* CO2 by fabric — Tremor BarChart horizontal style via BarList */}
-        <Card className="mt-3">
-          <Title>CO₂ Saved by Fabric Type (kg)</Title>
-          <BarList
-            data={fabricImpactData.map(f => ({
-              name: f.name,
-              value: f['CO₂ (kg)'],
-            }))}
-            className="mt-4"
-            color="green"
-            valueFormatter={valueKg}
-          />
-        </Card>
-      </Card>
-
-      {/* ── Top Buyers — Tremor BarList ── */}
-      <Card className="mb-4">
-        <Title>Top Buyers</Title>
-        <BarList
-          data={topBuyersData}
-          className="mt-4"
-          color="green"
-          valueFormatter={valueUSD}
-        />
-      </Card>
-
-      {/* ── Fabric Breakdown — Tremor BarChart ── */}
-      <Card className="mb-8">
-        <Title>Fabric Inventory Breakdown</Title>
-        <BarChart
-          className="mt-4 h-52"
-          data={m.fabric_stats.map(r => ({
-            name: r.fabric_type.replace(/\/.*/, '').trim(),
-            'Weight (kg)': r.weight_kg,
-            Revenue: r.revenue,
-          }))}
-          index="name"
-          categories={['Weight (kg)', 'Revenue']}
-          colors={['slate', 'green']}
-          valueFormatter={v => Number(v) < 1 ? formatWeightKg(v) : Number(v).toLocaleString(undefined, { maximumFractionDigits: 1 })}
-          showLegend={true}
-        />
-      </Card>
+      {action && <div className="admin-section-action">{action}</div>}
     </div>
   )
+}
+
+function RunPreview({ run }) {
+  const lots = run?.lots || []
+  const groups = run?.summary_groups || []
+  return (
+    <article className="admin-run-preview">
+      <div className="admin-run-image">
+        {run?.annotated_image_data_url ? (
+          <img src={run.annotated_image_data_url} alt="Latest segmented scan" />
+        ) : (
+          <div className="admin-run-placeholder">
+            <IconScan />
+            <span>Segmented scan image appears after the next factory photo.</span>
+          </div>
+        )}
+      </div>
+      <div className="admin-run-detail">
+        <div className="admin-run-detail-head">
+          <div>
+            <span className="admin-eyebrow">{run?.label || 'No scan yet'}</span>
+            <h3>{run ? `${run.group_count} sorted lots created` : 'Waiting for first run'}</h3>
+          </div>
+          <span className="admin-confidence">{run?.scale_confidence || 'ready'}</span>
+        </div>
+        <div className="admin-run-stats">
+          <span><strong>{run?.piece_count || 0}</strong> pieces</span>
+          <span><strong>{formatWeightKg(run?.total_weight_kg || 0)}</strong> weight</span>
+          <span><strong>{formatMoney(run?.inventory_value || 0)}</strong> value</span>
+          <span><strong>{formatWater(run?.water_saved_l || 0)}</strong> water</span>
+        </div>
+        <div className="admin-run-lots">
+          {lots.length > 0 ? lots.map((lot) => <LotPill lot={lot} key={lot.id} />) : groups.slice(0, 8).map((group) => (
+            <span className="admin-lot-pill" key={group.key}>
+              <i style={{ background: group.color_hex }} />
+              {group.fabric_type} · {Math.round(group.weight_g || 0)}g
+            </span>
+          ))}
+          {!lots.length && !groups.length && <span className="admin-muted">No run data yet.</span>}
+        </div>
+      </div>
+    </article>
+  )
+}
+
+function LotPill({ lot }) {
+  return (
+    <span className="admin-lot-pill">
+      <i style={{ background: lot.color_hex }} />
+      {lot.fabric_type} · {formatWeightKg(lot.weight_kg)}
+    </span>
+  )
+}
+
+function LotActionRow({ lot, acting, onAction }) {
+  const publishKey = `${lot.status === 'unlisted' ? 'relist' : 'delist'}-${lot.id}`
+  const deleteKey = `delete-${lot.id}`
+  return (
+    <article className="admin-lot-action-row">
+      <div className="admin-lot-thumb" style={{ background: lot.color_hex }}>
+        {lot.thumbnail && <img src={lot.thumbnail} alt="" />}
+      </div>
+      <div className="admin-lot-action-main">
+        <strong>{lot.name}</strong>
+        <span>{lot.fabric_type} · {formatWeightKg(lot.weight_kg)} · {formatUnitPrice(lot.weight_kg > 0 ? lot.current_price_usd / lot.weight_kg : 0)}</span>
+      </div>
+      <span className={`admin-status admin-status--${lot.status}`}>{lot.status}</span>
+      <div className="admin-row-buttons">
+        {lot.status === 'unlisted' ? (
+          <button type="button" onClick={() => onAction(lot, 'relist')} disabled={acting[publishKey]}>
+            Publish
+          </button>
+        ) : lot.status === 'available' ? (
+          <button type="button" className="btn-ghost" onClick={() => onAction(lot, 'delist')} disabled={acting[publishKey]}>
+            Delist
+          </button>
+        ) : null}
+        <button type="button" className="btn-ghost admin-danger-btn" onClick={() => onAction(lot, 'delete')} disabled={acting[deleteKey]}>
+          Delete
+        </button>
+      </div>
+    </article>
+  )
+}
+
+function ImpactMetric({ label, value, detail }) {
+  return (
+    <div className="admin-impact-metric">
+      <span>{label}</span>
+      <strong>{value}</strong>
+      <small>{detail}</small>
+    </div>
+  )
+}
+
+function ChartCard({ title, children }) {
+  return (
+    <article className="admin-chart-card">
+      <h3>{title}</h3>
+      {children}
+    </article>
+  )
+}
+
+function EmptyDemoState() {
+  return (
+    <section className="admin-empty-state">
+      <div>
+        <strong>Ready for a clean demo restart.</strong>
+        <span>After the first table photo, this page will fill with scan evidence, lot controls, impact metrics, and charts.</span>
+      </div>
+      <Link to="/factory">Start scan</Link>
+    </section>
+  )
+}
+
+function IconScan() {
+  return (
+    <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 7V5.5A1.5 1.5 0 0 1 5.5 4H7" />
+      <path d="M17 4h1.5A1.5 1.5 0 0 1 20 5.5V7" />
+      <path d="M20 17v1.5a1.5 1.5 0 0 1-1.5 1.5H17" />
+      <path d="M7 20H5.5A1.5 1.5 0 0 1 4 18.5V17" />
+      <path d="M7 12h10" />
+      <path d="M8 9h3" />
+      <path d="M13 15h3" />
+    </svg>
+  )
+}
+
+function formatWater(value) {
+  const liters = Number(value) || 0
+  if (liters <= 0) return '0 L'
+  if (liters < 10) return `${liters.toFixed(1)} L`
+  if (liters < 1000) return `${Math.round(liters).toLocaleString()} L`
+  return `${(liters / 1000).toFixed(liters >= 10000 ? 0 : 1)} kL`
+}
+
+function formatCompact(value) {
+  const number = Number(value) || 0
+  if (number < 10) return number.toFixed(2).replace(/\.?0+$/, '')
+  return Math.round(number).toLocaleString()
 }

@@ -1,7 +1,8 @@
-"""Admin-only metrics endpoint."""
+"""Admin operations dashboard and demo reset endpoints."""
 
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -14,6 +15,7 @@ from .auth import get_current_user
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
 ESTIMATED_COST_FACTOR = 0.28
+DIVERSION_TARGET_KG = 5.0
 
 
 def _round_small(value: float, small_digits: int = 3, normal_digits: int = 1) -> float:
@@ -23,184 +25,268 @@ def _round_small(value: float, small_digits: int = 3, normal_digits: int = 1) ->
     return round(value, normal_digits)
 
 
+def _short_fabric(value: str) -> str:
+    return (value or "Unspecified").split("/")[0].replace(" Blend", "").strip() or "Unspecified"
+
+
+def _lot_row(lot: models.Lot) -> dict:
+    return {
+        "id": lot.id,
+        "name": lot.name,
+        "fabric_type": lot.fabric_type,
+        "composition": lot.composition,
+        "color_name": lot.color_name,
+        "color_hex": lot.color_hex,
+        "piece_count": lot.piece_count or 0,
+        "weight_kg": _round_small(lot.weight_kg, normal_digits=2),
+        "price_usd": round(lot.price_usd or 0, 2),
+        "current_price_usd": round(current_price(lot.price_usd or 0, lot.created_at), 2),
+        "carbon_saved_kg": _round_small(lot.carbon_saved_kg, normal_digits=2),
+        "water_saved_l": round(lot.water_saved_l or 0, 1),
+        "status": lot.status,
+        "claimed_by": lot.claimed_by,
+        "days_listed": days_listed(lot.created_at),
+        "price_decay_pct": decay_pct(lot.price_usd or 0, lot.created_at),
+        "scan_run_id": lot.scan_run_id,
+        "thumbnail": _thumbnail(lot.piece_images),
+        "created_at": lot.created_at.isoformat(),
+    }
+
+
+def _thumbnail(piece_images) -> str | None:
+    if not isinstance(piece_images, list) or not piece_images:
+        return None
+    first = piece_images[0]
+    if isinstance(first, str):
+        return first
+    if isinstance(first, dict):
+        return first.get("src") or first.get("url") or first.get("crop_data_url") or first.get("data_url")
+    return None
+
+
+def _status_counts(lots: list[models.Lot]) -> dict:
+    return {
+        "available": sum(1 for lot in lots if lot.status == "available"),
+        "claimed": sum(1 for lot in lots if lot.status == "claimed"),
+        "unlisted": sum(1 for lot in lots if lot.status == "unlisted"),
+    }
+
+
+def _run_label(created_at: datetime) -> str:
+    return created_at.strftime("%b %-d, %-I:%M %p")
+
+
 @router.get("/metrics")
 def get_metrics(db: Session = Depends(get_db)):
-    lots = db.query(models.Lot).all()
-    claimed = [l for l in lots if l.status == "claimed"]
-    available = [l for l in lots if l.status == "available"]
+    lots = db.query(models.Lot).order_by(models.Lot.created_at.desc()).all()
+    scan_runs = db.query(models.ScanRun).order_by(models.ScanRun.created_at.desc()).all()
 
-    revenue = sum(l.price_usd for l in claimed)
+    claimed = [lot for lot in lots if lot.status == "claimed"]
+    available = [lot for lot in lots if lot.status == "available"]
+    unlisted = [lot for lot in lots if lot.status == "unlisted"]
+    active_inventory = available + unlisted
+
+    revenue = sum(lot.price_usd or 0 for lot in claimed)
     estimated_cost = revenue * ESTIMATED_COST_FACTOR
     gross_profit = revenue - estimated_cost
-    inventory_value = sum(current_price(l.price_usd, l.created_at) for l in available)
-    total_weight = sum(l.weight_kg for l in lots)
+    inventory_value = sum(current_price(lot.price_usd or 0, lot.created_at) for lot in available)
+    unlisted_value = sum(current_price(lot.price_usd or 0, lot.created_at) for lot in unlisted)
+    total_weight = sum(lot.weight_kg or 0 for lot in lots)
+    total_pieces = sum(lot.piece_count or 0 for lot in lots)
+    total_carbon = sum(lot.carbon_saved_kg or 0 for lot in lots)
+    total_water = sum(lot.water_saved_l or 0 for lot in lots)
+    avg_price_per_kg = inventory_value / sum(lot.weight_kg or 0 for lot in available) if available else 0
 
-    avg_days = (
-        round(sum(days_listed(l.created_at) for l in claimed) / len(claimed), 1)
-        if claimed else 0
-    )
+    lots_by_run: dict[int, list[models.Lot]] = defaultdict(list)
+    for lot in lots:
+        if lot.scan_run_id:
+            lots_by_run[lot.scan_run_id].append(lot)
 
-    # Top buyers
-    buyer_counts: dict[str, dict] = {}
-    for l in claimed:
-        if l.claimed_by:
-            entry = buyer_counts.setdefault(l.claimed_by, {"lots": 0, "value": 0.0})
-            entry["lots"] += 1
-            entry["value"] += l.price_usd
-    top_buyers = sorted(
-        [{"name": k, **v} for k, v in buyer_counts.items()],
-        key=lambda x: -x["value"],
-    )[:6]
+    recent_runs = []
+    for scan in scan_runs[:8]:
+        run_lots = sorted(lots_by_run.get(scan.id, []), key=lambda lot: lot.created_at, reverse=True)
+        run_weight = sum(lot.weight_kg or 0 for lot in run_lots) or (scan.total_weight_kg or 0)
+        run_value = sum(current_price(lot.price_usd or 0, lot.created_at) for lot in run_lots)
+        run_carbon = sum(lot.carbon_saved_kg or 0 for lot in run_lots) or (scan.total_carbon_saved_kg or 0)
+        run_water = sum(lot.water_saved_l or 0 for lot in run_lots) or (scan.total_water_saved_l or 0)
+        summary = scan.summary if isinstance(scan.summary, dict) else {}
+        recent_runs.append({
+            "id": scan.id,
+            "created_at": scan.created_at.isoformat(),
+            "label": _run_label(scan.created_at),
+            "annotated_image_data_url": scan.annotated_image_data_url,
+            "piece_count": sum(lot.piece_count or 0 for lot in run_lots) or scan.piece_count or 0,
+            "group_count": len(run_lots) or scan.group_count or 0,
+            "total_weight_kg": _round_small(run_weight, normal_digits=2),
+            "inventory_value": round(run_value, 2),
+            "carbon_saved_kg": _round_small(run_carbon, normal_digits=2),
+            "water_saved_l": round(run_water, 1),
+            "status_counts": _status_counts(run_lots),
+            "scale_method": summary.get("scale_method") or "vision estimate",
+            "scale_confidence": summary.get("scale_confidence") or "reviewed",
+            "warnings": summary.get("warnings") or [],
+            "lots": [_lot_row(lot) for lot in run_lots[:10]],
+            "summary_groups": summary.get("groups") or [],
+        })
 
-    # Fabric breakdown
+    if not recent_runs and lots:
+        created_at = max(lot.created_at for lot in lots)
+        recent_runs.append({
+            "id": None,
+            "created_at": created_at.isoformat(),
+            "label": "Current inventory",
+            "annotated_image_data_url": None,
+            "piece_count": total_pieces,
+            "group_count": len(lots),
+            "total_weight_kg": _round_small(total_weight, normal_digits=2),
+            "inventory_value": round(inventory_value, 2),
+            "carbon_saved_kg": _round_small(total_carbon, normal_digits=2),
+            "water_saved_l": round(total_water, 1),
+            "status_counts": _status_counts(lots),
+            "scale_method": "legacy lots",
+            "scale_confidence": "stored inventory",
+            "warnings": [],
+            "lots": [_lot_row(lot) for lot in lots[:10]],
+            "summary_groups": [],
+        })
+
     fabric_stats: dict[str, dict] = {}
-    for l in lots:
-        entry = fabric_stats.setdefault(l.fabric_type, {"weight_kg": 0.0, "revenue": 0.0, "lots": 0})
-        entry["weight_kg"] = round(entry["weight_kg"] + l.weight_kg, 3)
+    for lot in lots:
+        key = _short_fabric(lot.fabric_type)
+        entry = fabric_stats.setdefault(key, {
+            "fabric_type": key,
+            "lots": 0,
+            "pieces": 0,
+            "weight_kg": 0.0,
+            "inventory_value": 0.0,
+            "revenue": 0.0,
+            "carbon_kg": 0.0,
+            "water_l": 0.0,
+            "color_hex": lot.color_hex,
+        })
         entry["lots"] += 1
-        if l.status == "claimed":
-            entry["revenue"] = round(entry["revenue"] + l.price_usd, 2)
-    fabric_rows = sorted(
-        [{"fabric_type": k, **v} for k, v in fabric_stats.items()],
-        key=lambda x: -x["revenue"],
-    )
+        entry["pieces"] += lot.piece_count or 0
+        entry["weight_kg"] += lot.weight_kg or 0
+        entry["carbon_kg"] += lot.carbon_saved_kg or 0
+        entry["water_l"] += lot.water_saved_l or 0
+        if lot.status == "claimed":
+            entry["revenue"] += lot.price_usd or 0
+        elif lot.status == "available":
+            entry["inventory_value"] += current_price(lot.price_usd or 0, lot.created_at)
 
-    # Carter's pilot
-    carters_lots = [l for l in claimed if l.claimed_by == "Carter's Circular Supply Pilot"]
-    carters_weight = _round_small(sum(l.weight_kg for l in carters_lots), normal_digits=1)
-    carters_revenue = round(sum(l.price_usd for l in carters_lots), 2)
-    carters_carbon = _round_small(sum(l.carbon_saved_kg for l in carters_lots), normal_digits=1)
+    fabric_rows = sorted(fabric_stats.values(), key=lambda row: (-row["weight_kg"], row["fabric_type"]))
+    for row in fabric_rows:
+        row["weight_kg"] = _round_small(row["weight_kg"], normal_digits=2)
+        row["inventory_value"] = round(row["inventory_value"], 2)
+        row["revenue"] = round(row["revenue"], 2)
+        row["carbon_kg"] = _round_small(row["carbon_kg"], normal_digits=2)
+        row["water_l"] = round(row["water_l"], 1)
 
-    today = datetime.utcnow().date()
-
-    # Impact
-    total_carbon = _round_small(sum(l.carbon_saved_kg for l in lots), normal_digits=1)
-    total_water = round(sum(l.water_saved_l for l in lots), 0)
-
-    # Impact by fabric type (for chart)
-    fabric_impact: dict[str, dict] = {}
-    for l in lots:
-        key = l.fabric_type.split('/')[0].replace(' Blend', '').strip()
-        entry = fabric_impact.setdefault(key, {"carbon_kg": 0.0, "water_l": 0.0, "weight_kg": 0.0})
-        entry["carbon_kg"] = round(entry["carbon_kg"] + l.carbon_saved_kg, 2)
-        entry["water_l"] = round(entry["water_l"] + l.water_saved_l, 0)
-        entry["weight_kg"] = round(entry["weight_kg"] + l.weight_kg, 3)
-    fabric_impact_rows = sorted(
-        [{"fabric": k, **v} for k, v in fabric_impact.items()],
-        key=lambda x: -x["carbon_kg"],
-    )[:8]
-
-    # Cumulative impact over last 30 days
-    impact_trend = []
-    running_carbon = 0.0
-    running_water = 0.0
-    for i in range(29, -1, -1):
-        d = today - timedelta(days=i)
-        for l in lots:
-            if l.created_at.date() == d:
-                running_carbon += l.carbon_saved_kg
-                running_water += l.water_saved_l
-        impact_trend.append({
-            "date": d.strftime("%-m/%-d"),
-                "carbon_kg": _round_small(running_carbon, normal_digits=1),
-            "water_l": round(running_water, 0),
+    run_history = []
+    for index, scan in enumerate(reversed(scan_runs[-8:]), start=1):
+        run_lots = lots_by_run.get(scan.id, [])
+        weight = sum(lot.weight_kg or 0 for lot in run_lots) or scan.total_weight_kg or 0
+        value = sum(current_price(lot.price_usd or 0, lot.created_at) for lot in run_lots)
+        run_history.append({
+            "name": f"Run {index}",
+            "weight_g": round(weight * 1000, 1),
+            "value_usd": round(value, 2),
+            "pieces": sum(lot.piece_count or 0 for lot in run_lots) or scan.piece_count or 0,
+        })
+    if not run_history and lots:
+        run_history.append({
+            "name": "Current",
+            "weight_g": round(total_weight * 1000, 1),
+            "value_usd": round(inventory_value, 2),
+            "pieces": total_pieces,
         })
 
-    # Revenue trend — last 14 days bucketed by day
-    daily_revenue: dict = defaultdict(float)
-    daily_lots: dict = defaultdict(int)
-    for l in claimed:
-        day = l.created_at.date()
-        daily_revenue[day] += l.price_usd
-        daily_lots[day] += 1
-    revenue_trend = []
-    for i in range(13, -1, -1):
-        d = today - timedelta(days=i)
-        revenue_trend.append({
-            "date": d.strftime("%-m/%-d"),
-            "revenue": round(daily_revenue.get(d, 0), 2),
-            "lots": daily_lots.get(d, 0),
-        })
-
-    # Recent activity — last 10 claimed lots
-    recent = sorted(
-        [l for l in claimed if l.claimed_by],
-        key=lambda l: l.created_at,
-        reverse=True,
-    )[:10]
-    activity_feed = [
-        {
-            "lot_name": l.name,
-            "buyer": l.claimed_by,
-            "fabric_type": l.fabric_type,
-            "weight_kg": l.weight_kg,
-            "price": round(l.price_usd, 2),
-            "days_ago": days_listed(l.created_at),
-        }
-        for l in recent
+    status_mix = [
+        {"name": "Available", "value": len(available)},
+        {"name": "Claimed", "value": len(claimed)},
+        {"name": "Unlisted", "value": len(unlisted)},
     ]
 
-    # Price decay alerts — lots listed >14 days with >30% decay
-    decay_alerts = []
-    for l in available:
-        dp = decay_pct(l.price_usd, l.created_at)
-        dl = days_listed(l.created_at)
-        if dl > 14 and dp > 30:
-            decay_alerts.append({
-                "id": l.id,
-                "name": l.name,
-                "fabric_type": l.fabric_type,
-                "days_listed": dl,
-                "decay_pct": dp,
-                "base_price": round(l.price_usd, 2),
-                "current_price": round(current_price(l.price_usd, l.created_at), 2),
-                "value_lost": round(l.price_usd - current_price(l.price_usd, l.created_at), 2),
-            })
-    decay_alerts.sort(key=lambda x: -x["decay_pct"])
+    quick_action_lots = sorted(
+        active_inventory,
+        key=lambda lot: (
+            -current_price(lot.price_usd or 0, lot.created_at),
+            0 if lot.status == "available" else 1,
+            lot.created_at,
+        ),
+    )
+
+    recommended_actions = []
+    if not lots:
+        recommended_actions.append({
+            "title": "Run first table scan",
+            "detail": "The dashboard will populate immediately after the factory photo creates lots.",
+            "tone": "neutral",
+        })
+    if available:
+        recommended_actions.append({
+            "title": f"{len(available)} lots live on the marketplace",
+            "detail": "Monitor price, impact, and buyer claim activity from this panel.",
+            "tone": "positive",
+        })
+    if unlisted:
+        recommended_actions.append({
+            "title": f"{len(unlisted)} lots hidden from buyers",
+            "detail": "Re-publish high-quality lots when they are ready for sale.",
+            "tone": "warning",
+        })
+    if claimed:
+        recommended_actions.append({
+            "title": f"{len(claimed)} lots claimed",
+            "detail": "Revenue and diversion are already locked into the impact totals.",
+            "tone": "positive",
+        })
 
     return {
+        "has_data": bool(lots),
+        "generated_at": datetime.utcnow().isoformat(),
         "revenue": round(revenue, 2),
         "estimated_cost": round(estimated_cost, 2),
         "gross_profit": round(gross_profit, 2),
         "profit_margin_pct": round(gross_profit / revenue * 100, 1) if revenue else 0,
         "inventory_value": round(inventory_value, 2),
+        "unlisted_value": round(unlisted_value, 2),
+        "avg_price_per_kg": round(avg_price_per_kg, 2),
         "total_lots": len(lots),
         "available_lots": len(available),
         "claimed_lots": len(claimed),
+        "unlisted_lots": len(unlisted),
         "claim_rate_pct": round(len(claimed) / len(lots) * 100, 1) if lots else 0,
-        "avg_days_to_claim": avg_days,
-        "total_weight_kg": _round_small(total_weight, normal_digits=1),
-        "total_carbon_saved_kg": total_carbon,
-        "total_water_saved_l": int(total_water),
-        # Carbon equivalencies
-        "carbon_equiv_trees": round(total_carbon / 21, 1),
-        "carbon_equiv_car_miles": int(total_carbon * 2.48),   # EPA: 0.404 kg CO2/mile → ~2.48 miles/kg
-        "carbon_equiv_flights": round(total_carbon / 255, 2), # avg domestic flight ~255 kg CO2/passenger
-        "carbon_equiv_phones": int(total_carbon * 122),       # ~8.2g CO2 per phone charge → 122/kg
-        # Water equivalencies
-        "water_equiv_showers": int(round(total_water / 65, 0)),
-        "water_equiv_bathtubs": int(total_water / 150),       # avg bathtub ~150L
-        "water_equiv_bottles": int(total_water / 0.5),        # 500ml bottles
-        "water_equiv_days": round(total_water / 3.7 / 365, 1), # US avg daily drinking water 3.7L/day → person-years
-        # Energy
-        "energy_saved_kwh": round(total_weight * 15, 1),      # textile production ~15 kWh/kg
-        "energy_equiv_homes": round(total_weight * 15 / 10800, 2), # avg US home ~10,800 kWh/yr
-        # Fabric impact by type
-        "fabric_impact": fabric_impact_rows,
-        # Cumulative trend
-        "impact_trend": impact_trend,
-        "diversion_target_kg": 500,
-        "diversion_pct": min(100, round(total_weight / 500 * 100, 1)),
-        "carters_lots": len(carters_lots),
-        "carters_weight_kg": carters_weight,
-        "carters_revenue": carters_revenue,
-        "carters_carbon_kg": carters_carbon,
-        "top_buyers": top_buyers,
+        "avg_days_to_claim": (
+            round(sum(days_listed(lot.created_at) for lot in claimed) / len(claimed), 1)
+            if claimed else 0
+        ),
+        "total_pieces": total_pieces,
+        "total_weight_kg": _round_small(total_weight, normal_digits=2),
+        "total_carbon_saved_kg": _round_small(total_carbon, normal_digits=2),
+        "total_water_saved_l": round(total_water, 1),
+        "carbon_equiv_car_miles": round(total_carbon * 2.48, 1),
+        "carbon_equiv_phones": int(total_carbon * 122),
+        "water_equiv_showers": round(total_water / 65, 1),
+        "water_equiv_bottles": int(total_water / 0.5),
+        "energy_saved_kwh": round(total_weight * 15, 2),
+        "diversion_target_kg": DIVERSION_TARGET_KG,
+        "diversion_pct": min(100, round(total_weight / DIVERSION_TARGET_KG * 100, 1)) if DIVERSION_TARGET_KG else 0,
+        "recent_runs": recent_runs,
         "fabric_stats": fabric_rows,
-        "revenue_trend": revenue_trend,
-        "activity_feed": activity_feed,
-        "decay_alerts": decay_alerts[:8],
-        "decay_alert_count": len(decay_alerts),
+        "fabric_impact": [
+            {
+                "fabric": row["fabric_type"],
+                "carbon_kg": row["carbon_kg"],
+                "water_l": row["water_l"],
+                "weight_kg": row["weight_kg"],
+            }
+            for row in fabric_rows
+        ],
+        "run_history": run_history,
+        "status_mix": status_mix,
+        "quick_action_lots": [_lot_row(lot) for lot in quick_action_lots],
+        "recommended_actions": recommended_actions[:4],
     }
 
 
@@ -209,26 +295,20 @@ def reset_demo(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    """Wipe all scanned lots so a fresh demo/pitch starts from a clean slate.
-
-    Only clears the `lots` table — the transactional data. Demo logins and the
-    buyer catalog (the "stage setup") are left untouched, so the marketplace
-    and admin metrics simply return to zero. Triggered from the factory header,
-    so the factory role is allowed (not just admin).
-    """
+    """Wipe scanned inventory and scan summaries for a clean pitch restart."""
     if current_user.role not in ("factory", "admin"):
         raise HTTPException(status_code=403, detail="Not allowed")
 
-    deleted = db.query(models.Lot).delete()
+    deleted_lots = db.query(models.Lot).delete()
+    deleted_runs = db.query(models.ScanRun).delete()
     db.commit()
 
-    # Cosmetic, best-effort: restart the id sequence so the next scan is lot #1.
-    # Postgres-only; never let it break the reset or the SQLite fallback.
     try:
         if db.bind.dialect.name == "postgresql":
             db.execute(text("ALTER TABLE public.lots ALTER COLUMN id RESTART WITH 1"))
+            db.execute(text("ALTER TABLE public.scan_runs ALTER COLUMN id RESTART WITH 1"))
             db.commit()
     except Exception:
         db.rollback()
 
-    return {"status": "ok", "deleted_lots": deleted}
+    return {"status": "ok", "deleted_lots": deleted_lots, "deleted_scan_runs": deleted_runs}

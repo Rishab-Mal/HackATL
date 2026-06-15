@@ -1,208 +1,174 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
-  Card, Grid, Flex, Col,
-  Metric, Text, Title, Bold,
-  Badge, BadgeDelta,
-  AreaChart, BarList,
-  ProgressBar,
-  List, ListItem,
-  Divider,
-} from '@tremor/react'
-import { formatMoney, formatWeightKg } from '../utils/formatters.js'
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts'
+import { Link } from 'react-router-dom'
+import { getAdminMetrics } from '../api.js'
+import { formatWeightKg } from '../utils/formatters.js'
 
-const valueKg = v => formatWeightKg(v)
+const IMPACT_COLORS = ['#166534', '#2563eb', '#0f766e', '#7c3aed', '#d97706', '#b91c1c']
 
 export default function Dashboard() {
-  const [m, setM] = useState(null)
+  const [metrics, setMetrics] = useState(null)
   const [error, setError] = useState(null)
 
   useEffect(() => {
-    const token = localStorage.getItem('reweave_token')
-    fetch('/api/admin/metrics', { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.json())
-      .then(setM)
-      .catch(e => setError(e.message))
+    getAdminMetrics()
+      .then((data) => {
+        setMetrics(data)
+        setError(null)
+      })
+      .catch((err) => setError(err.message))
   }, [])
 
+  const fabricImpact = useMemo(() => metrics?.fabric_impact || [], [metrics])
+  const impactScore = useMemo(() => {
+    if (!metrics) return 0
+    const weightScore = Math.min(40, metrics.total_weight_kg * 18)
+    const waterScore = Math.min(35, metrics.total_water_saved_l / 20)
+    const listingScore = Math.min(25, metrics.total_lots * 3)
+    return Math.round(weightScore + waterScore + listingScore)
+  }, [metrics])
+
   if (error) return <div className="error">{error}</div>
-  if (!m) return <div className="dash-loading"><div className="dash-spinner" />Loading impact data…</div>
-
-  const impactTrendData = m.impact_trend.map(d => ({
-    date: d.date,
-    'CO₂ Saved (kg)': d.carbon_kg,
-  }))
-
-  const fabricImpactData = m.fabric_impact.map(f => ({
-    name: f.fabric,
-    value: f.carbon_kg,
-  }))
-
-  const equivCards = [
-    { value: m.carbon_equiv_trees,               label: 'Trees absorbing CO₂ for a full year' },
-    { value: m.carbon_equiv_car_miles.toLocaleString(), label: 'Miles of driving avoided' },
-    { value: m.carbon_equiv_flights,              label: 'Domestic flights offset' },
-    { value: m.carbon_equiv_phones.toLocaleString(), label: 'Phone charges powered' },
-    { value: m.water_equiv_showers.toLocaleString(), label: '8-minute showers saved' },
-    { value: m.water_equiv_bathtubs.toLocaleString(), label: 'Bathtubs of water conserved' },
-    { value: m.water_equiv_bottles.toLocaleString(), label: '500 mL bottles not consumed' },
-    { value: m.energy_equiv_homes,               label: 'Homes powered for a year' },
-  ]
+  if (!metrics) return <div className="dash-loading"><div className="dash-spinner" />Loading impact report...</div>
 
   return (
-    <div className="dash">
-
-      {/* ── Header ── */}
-      <div className="dash-header">
+    <div className="admin-impact-page">
+      <section className="admin-impact-hero">
         <div>
-          <h1 className="dash-title">Environmental Impact</h1>
-          <p className="dash-subtitle">Reweave · Carter's Make &amp; Remake Pilot · Atlanta, GA</p>
+          <span className="admin-eyebrow">Impact report</span>
+          <h1>Positive outcomes from every scanned scrap.</h1>
+          <p>
+            These numbers come from the same lots powering the admin dashboard, so water,
+            carbon, energy, and diversion totals stay aligned with inventory.
+          </p>
         </div>
-        <div className="sdg-badges">
-          <div className="sdg-badge sdg-12">SDG 12<br /><span>Responsible Consumption</span></div>
-          <div className="sdg-badge sdg-6">SDG 6<br /><span>Clean Water</span></div>
-          <div className="sdg-badge sdg-13">SDG 13<br /><span>Climate Action</span></div>
+        <div className="admin-impact-score">
+          <span>Circularity signal</span>
+          <strong>{impactScore}</strong>
+          <small>updates as scans create lots</small>
         </div>
-      </div>
+      </section>
 
-      {/* ── Mission + Diversion Progress ── */}
-      <Card className="mb-4">
-        <Flex alignItems="start" className="gap-8 flex-wrap">
-          <div className="flex-1 min-w-0">
-            <Text className="text-green-700 font-semibold uppercase text-xs tracking-widest mb-1">Our Mission</Text>
-            <Text>
-              Every kilogram of fabric diverted from landfill prevents raw-material extraction,
-              toxic dye processing, and methane emissions from decomposition. Reweave turns
-              factory waste into a circular supply chain.
-            </Text>
-          </div>
-          <div className="min-w-48">
-            <Metric>{m.diversion_pct}%</Metric>
-            <Text className="mt-1">of {m.diversion_target_kg} kg pilot goal reached</Text>
-            <ProgressBar value={m.diversion_pct} color="green" className="mt-3" />
-            <Flex className="mt-1">
-              <Text className="text-xs"><Bold>{formatWeightKg(m.total_weight_kg)}</Bold> diverted</Text>
-              <Text className="text-xs">{formatWeightKg(Math.max(0, m.diversion_target_kg - m.total_weight_kg))} to go</Text>
-            </Flex>
-          </div>
-        </Flex>
-      </Card>
-
-      {/* ── Hero metrics ── */}
-      <Grid numItemsSm={2} numItemsLg={4} className="gap-3 mb-4">
-        <Card decoration="top" decorationColor="green">
-          <Text>CO₂ Emissions Prevented</Text>
-          <Metric className="mt-1">{formatWeightKg(m.total_carbon_saved_kg)}</Metric>
-          <BadgeDelta deltaType="increase" size="xs" className="mt-2">Diverted</BadgeDelta>
-        </Card>
-        <Card decoration="top" decorationColor="blue">
-          <Text>Water Conserved</Text>
-          <Metric className="mt-1">{m.total_water_saved_l.toLocaleString()} L</Metric>
-          <BadgeDelta deltaType="increase" size="xs" className="mt-2">Saved</BadgeDelta>
-        </Card>
-        <Card decoration="top" decorationColor="violet">
-          <Text>Fabric Diverted from Landfill</Text>
-          <Metric className="mt-1">{formatWeightKg(m.total_weight_kg)}</Metric>
-          <BadgeDelta deltaType="increase" size="xs" className="mt-2">From landfill</BadgeDelta>
-        </Card>
-        <Card decoration="top" decorationColor="orange">
-          <Text>Energy Saved</Text>
-          <Metric className="mt-1">{m.energy_saved_kwh.toLocaleString()} kWh</Metric>
-          <BadgeDelta deltaType="increase" size="xs" className="mt-2">Conserved</BadgeDelta>
-        </Card>
-      </Grid>
-
-      {/* ── Equivalency cards ── */}
-      <Text className="text-green-700 font-semibold uppercase text-xs tracking-widest mb-3">
-        What that actually means
-      </Text>
-      <Grid numItemsSm={2} numItemsLg={4} className="gap-3 mb-5">
-        {equivCards.map((item, i) => (
-          <Card key={i}>
-            <Metric>{item.value}</Metric>
-            <Text className="mt-1">{item.label}</Text>
-          </Card>
-        ))}
-      </Grid>
-
-      {/* ── CO₂ trend chart ── */}
-      <Card className="mb-3">
-        <Title>Cumulative CO₂ Saved — Last 30 Days</Title>
-        <AreaChart
-          className="mt-4 h-48"
-          data={impactTrendData}
-          index="date"
-          categories={['CO₂ Saved (kg)']}
-          colors={['green']}
-          valueFormatter={valueKg}
-          showLegend={false}
-          showGridLines={true}
-        />
-      </Card>
-
-      {/* ── CO₂ by fabric — Tremor BarList ── */}
-      <Card className="mb-4">
-        <Title>CO₂ Saved by Fabric Type</Title>
-        <BarList
-          data={fabricImpactData}
-          className="mt-4"
-          color="green"
-          valueFormatter={valueKg}
-        />
-      </Card>
-
-      {/* ── Carter's contribution ── */}
-      <div className="carters-card mb-4">
-        <div className="carters-card-header">
+      {!metrics.has_data && (
+        <section className="admin-empty-state">
           <div>
-            <div className="carters-card-eyebrow">Supplier Pilot Contribution</div>
-            <div className="carters-card-title">Carter's Circular Supply</div>
+            <strong>No scan data yet.</strong>
+            <span>Run one table scan and this report will populate from the created lots.</span>
           </div>
-          <div className="carters-card-badge">LIVE PILOT</div>
-        </div>
-        <div className="carters-card-stats">
-          <div className="carters-stat">
-            <div className="carters-stat-value">{m.carters_lots}</div>
-            <div className="carters-stat-label">Lots Claimed</div>
-          </div>
-          <div className="carters-stat">
-            <div className="carters-stat-value">{formatWeightKg(m.carters_weight_kg)}</div>
-            <div className="carters-stat-label">Fabric Diverted</div>
-          </div>
-          <div className="carters-stat">
-            <div className="carters-stat-value">{formatWeightKg(m.carters_carbon_kg)}</div>
-            <div className="carters-stat-label">CO₂ Saved</div>
-          </div>
-          <div className="carters-stat">
-            <div className="carters-stat-value">{formatMoney(m.carters_revenue)}</div>
-            <div className="carters-stat-label">Revenue to Supplier</div>
-          </div>
-        </div>
-        <div className="carters-card-footer">
-          Carter's Atlanta supplier offcuts → sorted by Reweave CV pipeline → claimed by Looptex Recyclers
-        </div>
-      </div>
+          <Link to="/factory">Start scan</Link>
+        </section>
+      )}
 
-      {/* ── Fabric breakdown — Tremor List ── */}
-      <Card className="mb-8">
-        <Title>Fabric-Level Breakdown</Title>
-        <List className="mt-4">
-          {m.fabric_stats.map(r => (
-            <ListItem key={r.fabric_type}>
-              <Flex>
+      <section className="admin-impact-total-grid">
+        <ImpactCard label="CO2 prevented" value={formatWeightKg(metrics.total_carbon_saved_kg)} detail={`${metrics.carbon_equiv_car_miles} driving miles avoided`} tone="green" />
+        <ImpactCard label="Water conserved" value={formatWater(metrics.total_water_saved_l)} detail={`${metrics.water_equiv_showers} showers saved`} tone="blue" />
+        <ImpactCard label="Fabric diverted" value={formatWeightKg(metrics.total_weight_kg)} detail={`${metrics.total_pieces} pieces kept in circulation`} tone="violet" />
+        <ImpactCard label="Energy avoided" value={`${formatCompact(metrics.energy_saved_kwh)} kWh`} detail={`${metrics.carbon_equiv_phones.toLocaleString()} phone charges equivalent`} tone="orange" />
+      </section>
+
+      <section className="admin-impact-story">
+        <div className="admin-impact-progress">
+          <div className="admin-impact-progress-head">
+            <div>
+              <span className="admin-eyebrow">Pilot diversion</span>
+              <h2>{metrics.diversion_pct}% of target reached</h2>
+            </div>
+            <strong>{formatWeightKg(metrics.total_weight_kg)} / {formatWeightKg(metrics.diversion_target_kg)}</strong>
+          </div>
+          <div className="admin-impact-progress-track">
+            <span style={{ width: `${Math.min(100, metrics.diversion_pct)}%` }} />
+          </div>
+          <p>
+            The pilot target is intentionally small enough for a live hackathon demo. Even gram-scale
+            scans show credible impact because the page displays grams, liters, and cents cleanly.
+          </p>
+        </div>
+
+        <div className="admin-impact-equivalents">
+          <Equivalent value={metrics.water_equiv_bottles.toLocaleString()} label="500 mL bottles of water conserved" />
+          <Equivalent value={metrics.carbon_equiv_phones.toLocaleString()} label="phone charges worth of CO2 avoided" />
+          <Equivalent value={`${metrics.available_lots}`} label="lots still available for circular reuse" />
+        </div>
+      </section>
+
+      <section className="admin-section">
+        <div className="admin-section-title">
+          <div>
+            <span className="admin-eyebrow">Material-level impact</span>
+            <h2>Impact by Fabric Type</h2>
+          </div>
+          <Link className="admin-impact-link admin-impact-link--light" to="/admin/lots">Manage inventory</Link>
+        </div>
+        <div className="admin-impact-chart-layout">
+          <div className="admin-impact-chart-card">
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={fabricImpact} margin={{ top: 10, right: 12, left: -12, bottom: 0 }}>
+                <CartesianGrid stroke="#eeeeee" vertical={false} />
+                <XAxis dataKey="fabric" tickLine={false} axisLine={false} fontSize={11} />
+                <YAxis tickLine={false} axisLine={false} fontSize={11} tickFormatter={(v) => `${v * 1000}g`} />
+                <Tooltip formatter={(value, name) => [name === 'weight_kg' ? formatWeightKg(value) : formatWeightKg(value), name === 'weight_kg' ? 'Weight' : 'CO2']} />
+                <Bar dataKey="weight_kg" radius={[4, 4, 0, 0]}>
+                  {fabricImpact.map((_, i) => <Cell key={i} fill={IMPACT_COLORS[i % IMPACT_COLORS.length]} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="admin-impact-fabric-list">
+            {fabricImpact.map((row, i) => (
+              <article key={row.fabric}>
+                <i style={{ background: IMPACT_COLORS[i % IMPACT_COLORS.length] }} />
                 <div>
-                  <Text><Bold>{r.fabric_type}</Bold></Text>
-                  <Text className="text-xs">{r.lots} lots · {formatWeightKg(r.weight_kg)}</Text>
+                  <strong>{row.fabric}</strong>
+                  <span>{formatWeightKg(row.weight_kg)} diverted · {formatWeightKg(row.carbon_kg)} CO2 · {formatWater(row.water_l)} water</span>
                 </div>
-                <div className="text-right">
-                  <Text><Bold>{formatWeightKg(r.weight_kg * 2.1)} CO₂</Bold></Text>
-                  <Text className="text-xs">{(r.weight_kg * 2700).toLocaleString()} L water</Text>
-                </div>
-              </Flex>
-            </ListItem>
-          ))}
-        </List>
-      </Card>
-
+              </article>
+            ))}
+            {fabricImpact.length === 0 && <div className="admin-empty-panel">Fabric impact appears after the first scan.</div>}
+          </div>
+        </div>
+      </section>
     </div>
   )
+}
+
+function ImpactCard({ label, value, detail, tone }) {
+  return (
+    <article className={`admin-impact-card admin-impact-card--${tone}`}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+      <small>{detail}</small>
+    </article>
+  )
+}
+
+function Equivalent({ value, label }) {
+  return (
+    <article>
+      <strong>{value}</strong>
+      <span>{label}</span>
+    </article>
+  )
+}
+
+function formatWater(value) {
+  const liters = Number(value) || 0
+  if (liters <= 0) return '0 L'
+  if (liters < 10) return `${liters.toFixed(1)} L`
+  if (liters < 1000) return `${Math.round(liters).toLocaleString()} L`
+  return `${(liters / 1000).toFixed(liters >= 10000 ? 0 : 1)} kL`
+}
+
+function formatCompact(value) {
+  const number = Number(value) || 0
+  if (number < 10) return number.toFixed(2).replace(/\.?0+$/, '')
+  return Math.round(number).toLocaleString()
 }
