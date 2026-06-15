@@ -8,9 +8,10 @@ import {
   List, ListItem,
   Divider,
 } from '@tremor/react'
+import { formatMoney, formatWeightKg } from '../../utils/formatters.js'
 
-const valueUSD = v => `$${Number(v).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
-const valueKg  = v => `${v} kg`
+const valueUSD = v => formatMoney(v)
+const valueKg = v => formatWeightKg(v)
 
 function SectionHeader({ title, badge }) {
   return (
@@ -85,7 +86,7 @@ export default function AdminDashboard() {
         <Flex alignItems="start">
           <div>
             <Text>Fabric Waste Diverted from Landfill</Text>
-            <Metric className="mt-1">{m.total_weight_kg} kg</Metric>
+            <Metric className="mt-1">{formatWeightKg(m.total_weight_kg)}</Metric>
           </div>
           <BadgeDelta deltaType="increase" size="sm">
             {m.diversion_pct}% of goal
@@ -94,7 +95,7 @@ export default function AdminDashboard() {
         <ProgressBar value={m.diversion_pct} color="green" className="mt-3" />
         <Flex className="mt-2">
           <Text><Bold>{m.diversion_pct}% complete</Bold></Text>
-          <Text>{Math.max(0, m.diversion_target_kg - m.total_weight_kg).toFixed(1)} kg to {m.diversion_target_kg} kg goal</Text>
+          <Text>{formatWeightKg(Math.max(0, m.diversion_target_kg - m.total_weight_kg))} to {formatWeightKg(m.diversion_target_kg)} goal</Text>
         </Flex>
       </Card>
 
@@ -113,11 +114,11 @@ export default function AdminDashboard() {
             <div className="carters-stat-label">Lots Claimed</div>
           </div>
           <div className="carters-stat">
-            <div className="carters-stat-value">{m.carters_weight_kg} kg</div>
+            <div className="carters-stat-value">{formatWeightKg(m.carters_weight_kg)}</div>
             <div className="carters-stat-label">Fabric Diverted</div>
           </div>
           <div className="carters-stat">
-            <div className="carters-stat-value">${m.carters_revenue.toFixed(0)}</div>
+            <div className="carters-stat-value">{formatMoney(m.carters_revenue)}</div>
             <div className="carters-stat-label">Revenue Generated</div>
           </div>
           <div className="carters-stat">
@@ -194,7 +195,7 @@ export default function AdminDashboard() {
         </Card>
         <Card>
           <Text>Total Fabric</Text>
-          <Metric className="mt-1">{m.total_weight_kg} kg</Metric>
+          <Metric className="mt-1">{formatWeightKg(m.total_weight_kg)}</Metric>
         </Card>
       </Grid>
 
@@ -270,7 +271,7 @@ export default function AdminDashboard() {
                 <Flex>
                   <div>
                     <Text><Bold>{a.lot_name}</Bold></Text>
-                    <Text className="text-xs">{a.buyer} · {a.weight_kg} kg</Text>
+                    <Text className="text-xs">{a.buyer} · {formatWeightKg(a.weight_kg)}</Text>
                   </div>
                   <div className="text-right">
                     <Text><Bold>{valueUSD(a.price)}</Bold></Text>
@@ -298,11 +299,11 @@ export default function AdminDashboard() {
                 <ListItem key={i}>
                   <Flex>
                     <div>
-                      <Text><Bold>{a.lot_name}</Bold></Text>
+                      <Text><Bold>{a.name}</Bold></Text>
                       <Text className="text-xs">{a.days_listed} days listed</Text>
                     </div>
                     <div className="text-right">
-                      <Text><Bold>${a.current_price}</Bold></Text>
+                      <Text><Bold>{formatMoney(a.current_price)}</Bold></Text>
                       <BadgeDelta deltaType="decrease" size="xs">-{a.decay_pct}%</BadgeDelta>
                     </div>
                   </Flex>
@@ -432,7 +433,7 @@ export default function AdminDashboard() {
           index="name"
           categories={['Weight (kg)', 'Revenue']}
           colors={['slate', 'green']}
-          valueFormatter={v => v > 100 ? valueUSD(v) : `${v} kg`}
+          valueFormatter={v => Number(v) < 1 ? formatWeightKg(v) : Number(v).toLocaleString(undefined, { maximumFractionDigits: 1 })}
           showLegend={true}
         />
       </Card>

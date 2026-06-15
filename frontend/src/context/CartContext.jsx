@@ -91,5 +91,5 @@ function itemPrice({ lot, qty }) {
   const totalWeight = Number(lot.weight_kg) || 0
   const totalPrice = Number(lot.current_price_usd) || 0
   if (!qty || qty >= totalWeight || totalWeight <= 0) return totalPrice
-  return Number((totalPrice * (qty / totalWeight)).toFixed(2))
+  return Number((totalPrice * (qty / totalWeight)).toFixed(4))
 }

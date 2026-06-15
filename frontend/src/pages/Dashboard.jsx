@@ -8,8 +8,9 @@ import {
   List, ListItem,
   Divider,
 } from '@tremor/react'
+import { formatMoney, formatWeightKg } from '../utils/formatters.js'
 
-const valueKg = v => `${v} kg`
+const valueKg = v => formatWeightKg(v)
 
 export default function Dashboard() {
   const [m, setM] = useState(null)
@@ -79,8 +80,8 @@ export default function Dashboard() {
             <Text className="mt-1">of {m.diversion_target_kg} kg pilot goal reached</Text>
             <ProgressBar value={m.diversion_pct} color="green" className="mt-3" />
             <Flex className="mt-1">
-              <Text className="text-xs"><Bold>{m.total_weight_kg} kg</Bold> diverted</Text>
-              <Text className="text-xs">{Math.max(0, m.diversion_target_kg - m.total_weight_kg).toFixed(1)} kg to go</Text>
+              <Text className="text-xs"><Bold>{formatWeightKg(m.total_weight_kg)}</Bold> diverted</Text>
+              <Text className="text-xs">{formatWeightKg(Math.max(0, m.diversion_target_kg - m.total_weight_kg))} to go</Text>
             </Flex>
           </div>
         </Flex>
@@ -90,7 +91,7 @@ export default function Dashboard() {
       <Grid numItemsSm={2} numItemsLg={4} className="gap-3 mb-4">
         <Card decoration="top" decorationColor="green">
           <Text>CO₂ Emissions Prevented</Text>
-          <Metric className="mt-1">{m.total_carbon_saved_kg} kg</Metric>
+          <Metric className="mt-1">{formatWeightKg(m.total_carbon_saved_kg)}</Metric>
           <BadgeDelta deltaType="increase" size="xs" className="mt-2">Diverted</BadgeDelta>
         </Card>
         <Card decoration="top" decorationColor="blue">
@@ -100,7 +101,7 @@ export default function Dashboard() {
         </Card>
         <Card decoration="top" decorationColor="violet">
           <Text>Fabric Diverted from Landfill</Text>
-          <Metric className="mt-1">{m.total_weight_kg} kg</Metric>
+          <Metric className="mt-1">{formatWeightKg(m.total_weight_kg)}</Metric>
           <BadgeDelta deltaType="increase" size="xs" className="mt-2">From landfill</BadgeDelta>
         </Card>
         <Card decoration="top" decorationColor="orange">
@@ -164,15 +165,15 @@ export default function Dashboard() {
             <div className="carters-stat-label">Lots Claimed</div>
           </div>
           <div className="carters-stat">
-            <div className="carters-stat-value">{m.carters_weight_kg} kg</div>
+            <div className="carters-stat-value">{formatWeightKg(m.carters_weight_kg)}</div>
             <div className="carters-stat-label">Fabric Diverted</div>
           </div>
           <div className="carters-stat">
-            <div className="carters-stat-value">{m.carters_carbon_kg} kg</div>
+            <div className="carters-stat-value">{formatWeightKg(m.carters_carbon_kg)}</div>
             <div className="carters-stat-label">CO₂ Saved</div>
           </div>
           <div className="carters-stat">
-            <div className="carters-stat-value">${m.carters_revenue.toFixed(0)}</div>
+            <div className="carters-stat-value">{formatMoney(m.carters_revenue)}</div>
             <div className="carters-stat-label">Revenue to Supplier</div>
           </div>
         </div>
@@ -190,10 +191,10 @@ export default function Dashboard() {
               <Flex>
                 <div>
                   <Text><Bold>{r.fabric_type}</Bold></Text>
-                  <Text className="text-xs">{r.lots} lots · {r.weight_kg} kg</Text>
+                  <Text className="text-xs">{r.lots} lots · {formatWeightKg(r.weight_kg)}</Text>
                 </div>
                 <div className="text-right">
-                  <Text><Bold>{(r.weight_kg * 2.1).toFixed(1)} kg CO₂</Bold></Text>
+                  <Text><Bold>{formatWeightKg(r.weight_kg * 2.1)} CO₂</Bold></Text>
                   <Text className="text-xs">{(r.weight_kg * 2700).toLocaleString()} L water</Text>
                 </div>
               </Flex>

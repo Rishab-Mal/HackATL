@@ -7,7 +7,7 @@ import re
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func
+from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session
 
 from .. import models, schemas
@@ -33,8 +33,10 @@ def _image_list(value) -> list[dict]:
         for img in value:
             if isinstance(img, str) and img:
                 normalized.append({"src": img})
-            elif isinstance(img, dict) and img.get("src"):
-                normalized.append(img)
+            elif isinstance(img, dict):
+                src = img.get("src") or img.get("url") or img.get("crop_data_url") or img.get("data_url")
+                if src:
+                    normalized.append({**img, "src": src})
         return normalized
     return []
 
@@ -71,12 +73,24 @@ def create_lot(lot: schemas.LotCreate, db: Session = Depends(get_db)):
     lot_key = lot.lot_key or _lot_key(lot.fabric_type, lot.composition, lot.color_name)
     existing = (
         db.query(models.Lot)
-        .filter(models.Lot.status == "available", models.Lot.lot_key == lot_key)
+        .filter(models.Lot.status == "available")
+        .filter(
+            or_(
+                models.Lot.lot_key == lot_key,
+                and_(
+                    models.Lot.lot_key.is_(None),
+                    models.Lot.fabric_type == lot.fabric_type,
+                    models.Lot.composition == lot.composition,
+                    models.Lot.color_name == lot.color_name,
+                ),
+            )
+        )
         .order_by(models.Lot.created_at.asc())
         .first()
     )
 
     if existing:
+        existing.lot_key = lot_key
         existing.weight_kg = round((existing.weight_kg or 0) + lot.weight_kg, 3)
         existing.piece_count = (existing.piece_count or 0) + lot.piece_count
         existing.carbon_saved_kg = round(existing.weight_kg * CARBON_PER_KG, 2)

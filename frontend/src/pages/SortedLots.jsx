@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { getLots, delistLot, relistLot } from '../api.js'
+import { formatMoney, formatUnitPrice, formatWeightKg } from '../utils/formatters.js'
 
 export default function SortedLots() {
   const [lots, setLots] = useState([])
@@ -101,8 +102,7 @@ export default function SortedLots() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
         {lots.map(lot => {
           const hasDecay  = lot.price_decay_pct > 0
-          const weightLb  = (lot.weight_kg * 2.205).toFixed(1)
-          const pricePerLb = (lot.current_price_usd / (lot.weight_kg * 2.205)).toFixed(2)
+          const pricePerKg = lot.weight_kg > 0 ? lot.current_price_usd / lot.weight_kg : 0
           const busy      = !!acting[lot.id]
           const isUnlisted = lot.status === 'unlisted'
           const isClaimed  = lot.status === 'claimed'
@@ -134,20 +134,20 @@ export default function SortedLots() {
                 <div className="buyer-lot-name">{lot.name}</div>
 
                 <div className="buyer-lot-price">
-                  ${lot.current_price_usd.toFixed(2)}
+                  {formatMoney(lot.current_price_usd)}
                   {hasDecay && (
                     <span className="buyer-lot-discount">-{lot.price_decay_pct}%</span>
                   )}
                 </div>
 
                 <div className="buyer-lot-perlb">
-                  ${pricePerLb} / lb &nbsp;·&nbsp; was ${lot.price_usd.toFixed(2)}
+                  {formatUnitPrice(pricePerKg)} &nbsp;·&nbsp; was {formatMoney(lot.price_usd)}
                 </div>
 
                 <div className="buyer-lot-meta-row">
                   <span>{lot.color_name}</span>
                   <span>·</span>
-                  <span>{weightLb} lb</span>
+                  <span>{formatWeightKg(lot.weight_kg)}</span>
                   <span>·</span>
                   <span>{lot.piece_count} pcs</span>
                   <span>·</span>
@@ -156,7 +156,7 @@ export default function SortedLots() {
 
                 {/* Impact row */}
                 <div style={{ fontSize: 11.5, color: 'var(--c-muted)', marginBottom: 14 }}>
-                  {lot.carbon_saved_kg} kg CO₂ saved · {lot.water_saved_l.toLocaleString()} L water
+                  {formatWeightKg(lot.carbon_saved_kg)} CO₂ saved · {lot.water_saved_l.toLocaleString()} L water
                 </div>
 
                 {/* CTA */}

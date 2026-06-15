@@ -1776,6 +1776,17 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   background: #f3f4f3;
 }
 
+.factory-app .fx-processing {
+  justify-content: center;
+  padding-block: clamp(0.85rem, 4dvh, 2.4rem);
+}
+
+.factory-app .fx-processing .fx-frame--scan {
+  height: clamp(320px, 56dvh, 500px);
+  min-height: 0;
+  aspect-ratio: auto;
+}
+
 .factory-app .fx-frame--scan img {
   position: absolute;
   inset: 0;
@@ -2614,6 +2625,16 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
     min-height: 380px;
   }
 
+  .factory-app .fx-processing {
+    padding-block: clamp(1rem, 5dvh, 3.25rem);
+  }
+
+  .factory-app .fx-processing .fx-frame--scan {
+    height: clamp(360px, 52dvh, 520px);
+    min-height: 0;
+    aspect-ratio: auto;
+  }
+
   .factory-app .fx-actions {
     grid-template-columns: 1fr 1fr;
   }
@@ -2685,6 +2706,15 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 
   .factory-app .fx-title {
     font-size: 1.55rem;
+  }
+
+  .factory-app .fx-processing {
+    gap: 0.72rem;
+    padding-block: clamp(0.6rem, 3dvh, 1.35rem);
+  }
+
+  .factory-app .fx-processing .fx-frame--scan {
+    height: clamp(300px, 53dvh, 430px);
   }
 
   .factory-app .fx-start {

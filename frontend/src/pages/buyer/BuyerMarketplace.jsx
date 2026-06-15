@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { getLots } from '../../api.js'
 import { useCart } from '../../context/CartContext.jsx'
+import { formatInputKg, formatMoney, formatUnitPrice, formatWeightKg, lotQuantityStep } from '../../utils/formatters.js'
 
 export default function BuyerMarketplace() {
   const { cart, addToCart, updateQty, removeFromCart } = useCart()
@@ -151,7 +152,11 @@ export default function BuyerMarketplace() {
           const activeImage = imageIndex[lot.id] || 0
           const hasDecay = lot.price_decay_pct > 0
           const perKg = lot.weight_kg > 0 ? lot.current_price_usd / lot.weight_kg : 0
-          const step = lot.weight_kg < 1 ? 0.025 : 0.1
+          const step = lotQuantityStep(lot.weight_kg)
+          const gramScale = lot.weight_kg < 1
+          const inputStep = gramScale ? step * 1000 : step
+          const inputMax = gramScale ? lot.weight_kg * 1000 : lot.weight_kg
+          const inputValue = gramScale ? formatInputGrams(qty) : formatInputKg(qty)
 
           return (
             <article className="buyer-lot-card" key={lot.id}>
@@ -185,25 +190,24 @@ export default function BuyerMarketplace() {
                 </div>
 
                 <div className="buyer-lot-name">{lot.name}</div>
-                <p className="buyer-lot-description">{cleanDescription(lot)}</p>
 
                 <div className="buyer-lot-meta-row">
                   <span className="buyer-swatch-dot" style={{ background: lot.color_hex }} />
                   <span>{capitalize(lot.color_name)}</span>
-                  <span>{formatWeight(lot.weight_kg)}</span>
+                  <span>{formatWeightKg(lot.weight_kg)}</span>
                   <span>{lot.piece_count} pcs</span>
                 </div>
 
                 <div className="buyer-price-row">
                   <div>
-                    <div className="buyer-lot-price">${selectedPrice.toFixed(2)}</div>
+                    <div className="buyer-lot-price">{formatMoney(selectedPrice)}</div>
                     <div className="buyer-lot-perlb">
-                      ${perKg.toFixed(2)} / kg
+                      {formatUnitPrice(perKg)}
                       {hasDecay && <span> · {lot.price_decay_pct}% below list</span>}
                     </div>
                   </div>
                   <div className="buyer-weight-total">
-                    <strong>{formatWeight(qty)}</strong>
+                    <strong>{formatWeightKg(qty)}</strong>
                     <span>selected</span>
                   </div>
                 </div>
@@ -221,14 +225,14 @@ export default function BuyerMarketplace() {
                   <input
                     type="number"
                     min={0}
-                    max={lot.weight_kg}
-                    step={step}
-                    value={qty}
-                    onChange={e => setQty(lot, e.target.value)}
+                    max={inputMax}
+                    step={inputStep}
+                    value={inputValue}
+                    onChange={e => setQty(lot, gramScale ? Number(e.target.value) / 1000 : e.target.value)}
                     className="buyer-qty-input"
-                    aria-label={`Quantity in kilograms for ${lot.name}`}
+                    aria-label={`Quantity in ${gramScale ? 'grams' : 'kilograms'} for ${lot.name}`}
                   />
-                  <span className="buyer-qty-unit">kg</span>
+                  <span className="buyer-qty-unit">{gramScale ? 'g' : 'kg'}</span>
                 </div>
 
                 <button
@@ -299,7 +303,10 @@ function normalizePieceImages(images) {
   return images
     .map((img) => {
       if (typeof img === 'string') return { src: img }
-      if (img && typeof img === 'object' && img.src) return img
+      if (img && typeof img === 'object') {
+        const src = img.src || img.url || img.crop_data_url || img.data_url
+        if (src) return { ...img, src }
+      }
       return null
     })
     .filter(Boolean)
@@ -323,19 +330,12 @@ function proratedPrice(lot, qty) {
   const price = Number(lot.current_price_usd) || 0
   const selected = Number(qty) || 0
   if (weight <= 0 || selected >= weight) return price
-  return Number((price * (selected / weight)).toFixed(2))
+  return Number((price * (selected / weight)).toFixed(4))
 }
 
-function cleanDescription(lot) {
-  if (lot.description) return lot.description
-  return `${lot.piece_count} pieces of ${lot.color_name} ${lot.fabric_type}, ${formatWeight(lot.weight_kg)} estimated total.`
-}
-
-function formatWeight(kg) {
-  const value = Number(kg) || 0
-  if (value <= 0) return '0 g'
-  if (value >= 1) return `${value >= 10 ? value.toFixed(1) : value.toFixed(2)} kg`
-  return `${Math.max(1, Math.round(value * 1000))} g`
+function formatInputGrams(kg) {
+  const grams = (Number(kg) || 0) * 1000
+  return grams < 10 ? grams.toFixed(1).replace(/\.?0+$/, '') : String(Math.round(grams))
 }
 
 function makeLotKey(fabricType, composition, colorName) {

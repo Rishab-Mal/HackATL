@@ -16,6 +16,13 @@ router = APIRouter(prefix="/api/admin", tags=["admin"])
 ESTIMATED_COST_FACTOR = 0.28
 
 
+def _round_small(value: float, small_digits: int = 3, normal_digits: int = 1) -> float:
+    value = float(value or 0)
+    if abs(value) < 1:
+        return round(value, small_digits)
+    return round(value, normal_digits)
+
+
 @router.get("/metrics")
 def get_metrics(db: Session = Depends(get_db)):
     lots = db.query(models.Lot).all()
@@ -49,7 +56,7 @@ def get_metrics(db: Session = Depends(get_db)):
     fabric_stats: dict[str, dict] = {}
     for l in lots:
         entry = fabric_stats.setdefault(l.fabric_type, {"weight_kg": 0.0, "revenue": 0.0, "lots": 0})
-        entry["weight_kg"] = round(entry["weight_kg"] + l.weight_kg, 2)
+        entry["weight_kg"] = round(entry["weight_kg"] + l.weight_kg, 3)
         entry["lots"] += 1
         if l.status == "claimed":
             entry["revenue"] = round(entry["revenue"] + l.price_usd, 2)
@@ -60,14 +67,14 @@ def get_metrics(db: Session = Depends(get_db)):
 
     # Carter's pilot
     carters_lots = [l for l in claimed if l.claimed_by == "Carter's Circular Supply Pilot"]
-    carters_weight = round(sum(l.weight_kg for l in carters_lots), 1)
+    carters_weight = _round_small(sum(l.weight_kg for l in carters_lots), normal_digits=1)
     carters_revenue = round(sum(l.price_usd for l in carters_lots), 2)
-    carters_carbon = round(sum(l.carbon_saved_kg for l in carters_lots), 1)
+    carters_carbon = _round_small(sum(l.carbon_saved_kg for l in carters_lots), normal_digits=1)
 
     today = datetime.utcnow().date()
 
     # Impact
-    total_carbon = round(sum(l.carbon_saved_kg for l in lots), 1)
+    total_carbon = _round_small(sum(l.carbon_saved_kg for l in lots), normal_digits=1)
     total_water = round(sum(l.water_saved_l for l in lots), 0)
 
     # Impact by fabric type (for chart)
@@ -77,7 +84,7 @@ def get_metrics(db: Session = Depends(get_db)):
         entry = fabric_impact.setdefault(key, {"carbon_kg": 0.0, "water_l": 0.0, "weight_kg": 0.0})
         entry["carbon_kg"] = round(entry["carbon_kg"] + l.carbon_saved_kg, 2)
         entry["water_l"] = round(entry["water_l"] + l.water_saved_l, 0)
-        entry["weight_kg"] = round(entry["weight_kg"] + l.weight_kg, 2)
+        entry["weight_kg"] = round(entry["weight_kg"] + l.weight_kg, 3)
     fabric_impact_rows = sorted(
         [{"fabric": k, **v} for k, v in fabric_impact.items()],
         key=lambda x: -x["carbon_kg"],
@@ -95,7 +102,7 @@ def get_metrics(db: Session = Depends(get_db)):
                 running_water += l.water_saved_l
         impact_trend.append({
             "date": d.strftime("%-m/%-d"),
-            "carbon_kg": round(running_carbon, 1),
+                "carbon_kg": _round_small(running_carbon, normal_digits=1),
             "water_l": round(running_water, 0),
         })
 
@@ -162,7 +169,7 @@ def get_metrics(db: Session = Depends(get_db)):
         "claimed_lots": len(claimed),
         "claim_rate_pct": round(len(claimed) / len(lots) * 100, 1) if lots else 0,
         "avg_days_to_claim": avg_days,
-        "total_weight_kg": round(total_weight, 1),
+        "total_weight_kg": _round_small(total_weight, normal_digits=1),
         "total_carbon_saved_kg": total_carbon,
         "total_water_saved_l": int(total_water),
         # Carbon equivalencies
