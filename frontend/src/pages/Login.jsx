@@ -39,7 +39,10 @@ export default function Login() {
   return (
     <div className="login-page">
       <div className="login-card">
-        <div className="login-brand">🌿 Scrap Sorter</div>
+        <div className="login-brand">
+          <div className="login-brand-icon">SS</div>
+          Scrap Sorter
+        </div>
         <h1 className="login-title">Sign in</h1>
         <p className="login-sub">Enter your portal credentials to continue.</p>
 

@@ -49,6 +49,8 @@ export default function BinFeed() {
   const assignedCount = Object.values(binCounts).reduce((sum, count) => sum + count, 0)
   const recentLots = lots.slice(0, idx + 1).reverse().slice(0, 8)
 
+  const totalPieces = Object.values(binCounts).reduce((a, b) => a + b, 0)
+
   return (
     <div className="factory-app factory-app--wide">
       <FactoryHeader />
