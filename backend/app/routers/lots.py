@@ -7,7 +7,7 @@ import re
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func
+from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session
 
 from .. import models, schemas
@@ -33,8 +33,10 @@ def _image_list(value) -> list[dict]:
         for img in value:
             if isinstance(img, str) and img:
                 normalized.append({"src": img})
-            elif isinstance(img, dict) and img.get("src"):
-                normalized.append(img)
+            elif isinstance(img, dict):
+                src = img.get("src") or img.get("url") or img.get("crop_data_url") or img.get("data_url")
+                if src:
+                    normalized.append({**img, "src": src})
         return normalized
     return []
 
@@ -50,6 +52,7 @@ def _enrich(lot: models.Lot) -> schemas.LotOut:
         color_name=lot.color_name,
         color_hex=lot.color_hex,
         lot_key=lot.lot_key or _lot_key(lot.fabric_type, lot.composition, lot.color_name),
+        scan_run_id=lot.scan_run_id,
         piece_images=_image_list(lot.piece_images),
         piece_count=lot.piece_count,
         weight_kg=lot.weight_kg,
@@ -69,14 +72,28 @@ def _enrich(lot: models.Lot) -> schemas.LotOut:
 @router.post("", response_model=schemas.LotOut)
 def create_lot(lot: schemas.LotCreate, db: Session = Depends(get_db)):
     lot_key = lot.lot_key or _lot_key(lot.fabric_type, lot.composition, lot.color_name)
-    existing = (
-        db.query(models.Lot)
-        .filter(models.Lot.status == "available", models.Lot.lot_key == lot_key)
-        .order_by(models.Lot.created_at.asc())
-        .first()
-    )
+    existing = None
+    if not lot.scan_run_id:
+        existing = (
+            db.query(models.Lot)
+            .filter(models.Lot.status == "available")
+            .filter(
+                or_(
+                    models.Lot.lot_key == lot_key,
+                    and_(
+                        models.Lot.lot_key.is_(None),
+                        models.Lot.fabric_type == lot.fabric_type,
+                        models.Lot.composition == lot.composition,
+                        models.Lot.color_name == lot.color_name,
+                    ),
+                )
+            )
+            .order_by(models.Lot.created_at.asc())
+            .first()
+        )
 
     if existing:
+        existing.lot_key = lot_key
         existing.weight_kg = round((existing.weight_kg or 0) + lot.weight_kg, 3)
         existing.piece_count = (existing.piece_count or 0) + lot.piece_count
         existing.carbon_saved_kg = round(existing.weight_kg * CARBON_PER_KG, 2)
@@ -119,6 +136,25 @@ def create_lot(lot: schemas.LotCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(db_lot)
     return _enrich(db_lot)
+
+
+@router.post("/scan-runs", response_model=schemas.ScanRunOut)
+def create_scan_run(scan: schemas.ScanRunCreate, db: Session = Depends(get_db)):
+    db_scan = models.ScanRun(
+        annotated_image_data_url=scan.annotated_image_data_url,
+        image_width=scan.image_width,
+        image_height=scan.image_height,
+        piece_count=scan.piece_count,
+        group_count=scan.group_count,
+        total_weight_kg=round(scan.total_weight_kg or 0, 4),
+        total_carbon_saved_kg=round(scan.total_carbon_saved_kg or 0, 4),
+        total_water_saved_l=round(scan.total_water_saved_l or 0, 2),
+        summary=scan.summary or {},
+    )
+    db.add(db_scan)
+    db.commit()
+    db.refresh(db_scan)
+    return db_scan
 
 
 @router.get("/filters", response_model=schemas.LotFilterOptions)
@@ -260,3 +296,13 @@ def relist_lot(lot_id: int, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(lot)
     return _enrich(lot)
+
+
+@router.delete("/{lot_id}")
+def delete_lot(lot_id: int, db: Session = Depends(get_db)):
+    lot = db.get(models.Lot, lot_id)
+    if not lot:
+        raise HTTPException(status_code=404, detail="Lot not found")
+    db.delete(lot)
+    db.commit()
+    return {"status": "ok", "deleted_lot_id": lot_id}

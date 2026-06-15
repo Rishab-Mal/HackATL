@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Column, DateTime, Float, Integer, JSON, String, Text
+from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, JSON, String, Text
 
 from .database import Base
 
@@ -22,6 +22,7 @@ class Lot(Base):
     color_name = Column(String, nullable=False)
     color_hex = Column(String, nullable=False)
     lot_key = Column(String, nullable=True, index=True)
+    scan_run_id = Column(Integer, ForeignKey("scan_runs.id", ondelete="SET NULL"), nullable=True, index=True)
     piece_images = Column(JSON, default=list)
     piece_count = Column(Integer, default=0)
     weight_kg = Column(Float, default=0.0)
@@ -33,6 +34,24 @@ class Lot(Base):
     status = Column(String, default="available")  # available | claimed | unlisted
     claimed_by = Column(String, nullable=True)
     claimed_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class ScanRun(Base):
+    """One camera/table scan that produced one or more marketplace lots."""
+
+    __tablename__ = "scan_runs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    annotated_image_data_url = Column(Text, nullable=True)
+    image_width = Column(Integer, default=0)
+    image_height = Column(Integer, default=0)
+    piece_count = Column(Integer, default=0)
+    group_count = Column(Integer, default=0)
+    total_weight_kg = Column(Float, default=0.0)
+    total_carbon_saved_kg = Column(Float, default=0.0)
+    total_water_saved_l = Column(Float, default=0.0)
+    summary = Column(JSON, default=dict)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 

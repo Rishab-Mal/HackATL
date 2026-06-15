@@ -1,198 +1,205 @@
-import { useEffect, useState } from 'react'
-import { getLots, delistLot, relistLot } from '../api.js'
+import { useEffect, useMemo, useState } from 'react'
+import { deleteLot, delistLot, getLots, relistLot } from '../api.js'
+import { formatMoney, formatUnitPrice, formatWeightKg } from '../utils/formatters.js'
 
 export default function SortedLots() {
   const [lots, setLots] = useState([])
   const [filters, setFilters] = useState({ fabric_type: '', color_name: '', status: '' })
   const [error, setError] = useState(null)
-  const [acting, setActing] = useState({}) // { [lotId]: true } while request in-flight
+  const [acting, setActing] = useState({})
 
   function refresh() {
     const params = {}
     if (filters.fabric_type) params.fabric_type = filters.fabric_type
-    if (filters.color_name)  params.color_name  = filters.color_name
-    if (filters.status)      params.status       = filters.status
-    getLots(params).then(setLots).catch(e => setError(e.message))
+    if (filters.color_name) params.color_name = filters.color_name
+    if (filters.status) params.status = filters.status
+    getLots(params)
+      .then((data) => {
+        setLots(data)
+        setError(null)
+      })
+      .catch((e) => setError(e.message))
   }
 
   useEffect(refresh, [filters])
 
-  const fabricTypes = [...new Set(lots.map(l => l.fabric_type))].sort()
-  const colors      = [...new Set(lots.map(l => l.color_name))].sort()
+  const allFabricTypes = useMemo(() => [...new Set(lots.map((l) => l.fabric_type))].sort(), [lots])
+  const allColors = useMemo(() => [...new Set(lots.map((l) => l.color_name))].sort(), [lots])
+  const summary = useMemo(() => {
+    const available = lots.filter((l) => l.status === 'available')
+    const unlisted = lots.filter((l) => l.status === 'unlisted')
+    const claimed = lots.filter((l) => l.status === 'claimed')
+    const liveValue = available.reduce((sum, lot) => sum + (Number(lot.current_price_usd) || 0), 0)
+    const hiddenValue = unlisted.reduce((sum, lot) => sum + (Number(lot.current_price_usd) || 0), 0)
+    const weight = lots.reduce((sum, lot) => sum + (Number(lot.weight_kg) || 0), 0)
+    return { available: available.length, unlisted: unlisted.length, claimed: claimed.length, liveValue, hiddenValue, weight }
+  }, [lots])
 
-  async function handleDelist(lotId) {
-    setActing(a => ({ ...a, [lotId]: true }))
+  async function handleAction(lot, action) {
+    const key = `${action}-${lot.id}`
+    if (action === 'delete' && !window.confirm(`Delete ${lot.name}? This removes it from inventory and analytics.`)) return
+    setActing((a) => ({ ...a, [key]: true }))
     try {
-      const updated = await delistLot(lotId)
-      setLots(prev => prev.map(l => l.id === lotId ? updated : l))
+      if (action === 'delist') {
+        const updated = await delistLot(lot.id)
+        setLots((prev) => prev.map((l) => (l.id === lot.id ? updated : l)))
+      }
+      if (action === 'relist') {
+        const updated = await relistLot(lot.id)
+        setLots((prev) => prev.map((l) => (l.id === lot.id ? updated : l)))
+      }
+      if (action === 'delete') {
+        await deleteLot(lot.id)
+        setLots((prev) => prev.filter((l) => l.id !== lot.id))
+      }
+      setError(null)
     } catch (e) {
       setError(e.message)
     } finally {
-      setActing(a => ({ ...a, [lotId]: false }))
+      setActing((a) => ({ ...a, [key]: false }))
     }
   }
-
-  async function handleRelist(lotId) {
-    setActing(a => ({ ...a, [lotId]: true }))
-    try {
-      const updated = await relistLot(lotId)
-      setLots(prev => prev.map(l => l.id === lotId ? updated : l))
-    } catch (e) {
-      setError(e.message)
-    } finally {
-      setActing(a => ({ ...a, [lotId]: false }))
-    }
-  }
-
-  const available = lots.filter(l => l.status === 'available').length
-  const unlisted  = lots.filter(l => l.status === 'unlisted').length
-  const claimed   = lots.filter(l => l.status === 'claimed').length
 
   return (
-    <div className="buyer-page">
-      <div style={{ marginBottom: 20 }}>
-        <h1 style={{ marginBottom: 4 }}>Inventory</h1>
-        <p className="subtitle">All lots — available, unlisted, and claimed.</p>
-      </div>
+    <div className="admin-inventory-page">
+      <section className="admin-inventory-hero">
+        <div>
+          <span className="admin-eyebrow">Admin inventory</span>
+          <h1>Manage every scanned lot with room for detail.</h1>
+          <p>Review value, material, scan thumbnails, impact, and market state before publishing or removing lots.</p>
+        </div>
+        <div className="admin-inventory-total">
+          <span>Live inventory value</span>
+          <strong>{formatMoney(summary.liveValue)}</strong>
+          <small>{summary.available} market-ready lots</small>
+        </div>
+      </section>
 
       {error && <div className="error">{error}</div>}
 
-      {/* Filter bar */}
-      <div className="buyer-filters">
-        <span className="filter-label">Filter:</span>
-        <select
-          value={filters.fabric_type}
-          onChange={e => setFilters(f => ({ ...f, fabric_type: e.target.value }))}
-        >
-          <option value="">All fabric types</option>
-          {fabricTypes.map(t => <option key={t} value={t}>{t}</option>)}
-        </select>
-        <select
-          value={filters.color_name}
-          onChange={e => setFilters(f => ({ ...f, color_name: e.target.value }))}
-        >
-          <option value="">All colors</option>
-          {colors.map(c => <option key={c} value={c}>{c}</option>)}
-        </select>
-        <select
-          value={filters.status}
-          onChange={e => setFilters(f => ({ ...f, status: e.target.value }))}
-        >
-          <option value="">All statuses</option>
-          <option value="available">Available</option>
-          <option value="unlisted">Unlisted</option>
-          <option value="claimed">Claimed</option>
-        </select>
-        {(filters.fabric_type || filters.color_name || filters.status) && (
-          <button
-            className="btn-ghost"
-            style={{ fontSize: 12, padding: '5px 10px' }}
-            onClick={() => setFilters({ fabric_type: '', color_name: '', status: '' })}
-          >
-            Clear
-          </button>
-        )}
-        <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--c-muted)' }}>
-          {available} available · {unlisted} unlisted · {claimed} claimed
-        </span>
-      </div>
+      <section className="admin-inventory-kpis">
+        <InventoryKpi label="Available" value={summary.available} detail={formatMoney(summary.liveValue)} />
+        <InventoryKpi label="Hidden" value={summary.unlisted} detail={`${formatMoney(summary.hiddenValue)} off market`} />
+        <InventoryKpi label="Claimed" value={summary.claimed} detail="sold or reserved" />
+        <InventoryKpi label="Total Weight" value={formatWeightKg(summary.weight)} detail={`${lots.length} total lots`} />
+      </section>
 
-      {/* Lot grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-        {lots.map(lot => {
-          const hasDecay  = lot.price_decay_pct > 0
-          const weightLb  = (lot.weight_kg * 2.205).toFixed(1)
-          const pricePerLb = (lot.current_price_usd / (lot.weight_kg * 2.205)).toFixed(2)
-          const busy      = !!acting[lot.id]
-          const isUnlisted = lot.status === 'unlisted'
-          const isClaimed  = lot.status === 'claimed'
+      <section className="admin-inventory-workbench">
+        <div className="admin-inventory-toolbar">
+          <div>
+            <span className="admin-eyebrow">Action queue</span>
+            <h2>All Lots</h2>
+          </div>
+          <div className="admin-inventory-filters">
+            <select value={filters.fabric_type} onChange={(e) => setFilters((f) => ({ ...f, fabric_type: e.target.value }))}>
+              <option value="">All fabrics</option>
+              {allFabricTypes.map((type) => <option key={type} value={type}>{type}</option>)}
+            </select>
+            <select value={filters.color_name} onChange={(e) => setFilters((f) => ({ ...f, color_name: e.target.value }))}>
+              <option value="">All colors</option>
+              {allColors.map((color) => <option key={color} value={color}>{color}</option>)}
+            </select>
+            <select value={filters.status} onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value }))}>
+              <option value="">All statuses</option>
+              <option value="available">Available</option>
+              <option value="unlisted">Unlisted</option>
+              <option value="claimed">Claimed</option>
+            </select>
+            {(filters.fabric_type || filters.color_name || filters.status) && (
+              <button type="button" className="btn-ghost" onClick={() => setFilters({ fabric_type: '', color_name: '', status: '' })}>
+                Clear
+              </button>
+            )}
+          </div>
+        </div>
 
-          return (
-            <div
-              className="buyer-lot-card"
+        <div className="admin-inventory-list">
+          {lots.map((lot) => (
+            <InventoryRow
               key={lot.id}
-              style={isUnlisted ? { opacity: 0.6 } : undefined}
-            >
-              <div className="buyer-lot-colorbar" style={{ background: lot.color_hex }} />
-
-              <div className="buyer-lot-body">
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <div className="buyer-lot-type">{lot.fabric_type}</div>
-                  {/* Status pill */}
-                  {isClaimed && (
-                    <span style={{ fontSize: 10, fontWeight: 700, background: 'var(--c-bg)', border: '1px solid var(--c-border)', borderRadius: 3, padding: '1px 7px', color: 'var(--c-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                      Claimed
-                    </span>
-                  )}
-                  {isUnlisted && (
-                    <span style={{ fontSize: 10, fontWeight: 700, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 3, padding: '1px 7px', color: 'var(--c-danger)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                      Unlisted
-                    </span>
-                  )}
-                </div>
-
-                <div className="buyer-lot-name">{lot.name}</div>
-
-                <div className="buyer-lot-price">
-                  ${lot.current_price_usd.toFixed(2)}
-                  {hasDecay && (
-                    <span className="buyer-lot-discount">-{lot.price_decay_pct}%</span>
-                  )}
-                </div>
-
-                <div className="buyer-lot-perlb">
-                  ${pricePerLb} / lb &nbsp;·&nbsp; was ${lot.price_usd.toFixed(2)}
-                </div>
-
-                <div className="buyer-lot-meta-row">
-                  <span>{lot.color_name}</span>
-                  <span>·</span>
-                  <span>{weightLb} lb</span>
-                  <span>·</span>
-                  <span>{lot.piece_count} pcs</span>
-                  <span>·</span>
-                  <span>listed {lot.days_listed}d ago</span>
-                </div>
-
-                {/* Impact row */}
-                <div style={{ fontSize: 11.5, color: 'var(--c-muted)', marginBottom: 14 }}>
-                  {lot.carbon_saved_kg} kg CO₂ saved · {lot.water_saved_l.toLocaleString()} L water
-                </div>
-
-                {/* CTA */}
-                {isClaimed ? (
-                  <div style={{ marginTop: 'auto', padding: '8px 0', fontSize: 12, color: 'var(--c-muted)', borderTop: '1px solid var(--c-border)' }}>
-                    Claimed by <strong style={{ color: 'var(--c-text)' }}>{lot.claimed_by}</strong>
-                  </div>
-                ) : isUnlisted ? (
-                  <button
-                    className="buyer-lot-cta"
-                    style={{ marginTop: 'auto', background: 'var(--c-text)' }}
-                    onClick={() => handleRelist(lot.id)}
-                    disabled={busy}
-                  >
-                    {busy ? 'Re-listing…' : 'Re-list on Market'}
-                  </button>
-                ) : (
-                  <button
-                    className="buyer-lot-cta"
-                    style={{ marginTop: 'auto', background: 'transparent', color: 'var(--c-danger)', border: '1px solid #fecaca' }}
-                    onClick={() => handleDelist(lot.id)}
-                    disabled={busy}
-                  >
-                    {busy ? 'Removing…' : 'Remove from Market'}
-                  </button>
-                )}
-              </div>
-            </div>
-          )
-        })}
-        {lots.length === 0 && (
-          <p className="muted" style={{ gridColumn: '1/-1', padding: '24px 0' }}>
-            No lots match these filters.
-          </p>
-        )}
-      </div>
+              lot={lot}
+              busy={acting[`delist-${lot.id}`] || acting[`relist-${lot.id}`] || acting[`delete-${lot.id}`]}
+              onAction={handleAction}
+            />
+          ))}
+          {lots.length === 0 && (
+            <div className="admin-empty-panel">No lots match these filters.</div>
+          )}
+        </div>
+      </section>
     </div>
   )
+}
+
+function InventoryKpi({ label, value, detail }) {
+  return (
+    <article className="admin-inventory-kpi">
+      <span>{label}</span>
+      <strong>{value}</strong>
+      <small>{detail}</small>
+    </article>
+  )
+}
+
+function InventoryRow({ lot, busy, onAction }) {
+  const pricePerKg = lot.weight_kg > 0 ? lot.current_price_usd / lot.weight_kg : 0
+  const thumbnail = imageSrc(lot.piece_images)
+  return (
+    <article className={`admin-inventory-row admin-inventory-row--${lot.status}`}>
+      <div className="admin-inventory-thumb" style={{ background: lot.color_hex }}>
+        {thumbnail && <img src={thumbnail} alt="" />}
+      </div>
+      <div className="admin-inventory-main">
+        <div className="admin-inventory-title-row">
+          <div>
+            <h3>{lot.name}</h3>
+            <p>{lot.fabric_type} · {lot.composition}</p>
+          </div>
+          <span className={`admin-status admin-status--${lot.status}`}>{lot.status}</span>
+        </div>
+        <div className="admin-inventory-meta">
+          <span><strong>{formatWeightKg(lot.weight_kg)}</strong> weight</span>
+          <span><strong>{lot.piece_count}</strong> pieces</span>
+          <span><strong>{lot.color_name}</strong> color</span>
+          <span><strong>{lot.days_listed}d</strong> listed</span>
+        </div>
+      </div>
+      <div className="admin-inventory-value">
+        <strong>{formatMoney(lot.current_price_usd)}</strong>
+        <span>{formatUnitPrice(pricePerKg)}</span>
+        {lot.price_decay_pct > 0 && <small>{lot.price_decay_pct}% price decay</small>}
+      </div>
+      <div className="admin-inventory-impact">
+        <span>{formatWeightKg(lot.carbon_saved_kg)} CO2</span>
+        <span>{formatWater(lot.water_saved_l)} water</span>
+      </div>
+      <div className="admin-inventory-actions">
+        {lot.status === 'claimed' ? (
+          <span className="admin-claimed-by">Claimed by {lot.claimed_by}</span>
+        ) : lot.status === 'unlisted' ? (
+          <button type="button" onClick={() => onAction(lot, 'relist')} disabled={busy}>Publish</button>
+        ) : (
+          <button type="button" className="btn-ghost" onClick={() => onAction(lot, 'delist')} disabled={busy}>Delist</button>
+        )}
+        <button type="button" className="btn-ghost admin-danger-btn" onClick={() => onAction(lot, 'delete')} disabled={busy}>
+          Delete
+        </button>
+      </div>
+    </article>
+  )
+}
+
+function imageSrc(images) {
+  if (!Array.isArray(images) || images.length === 0) return null
+  const first = images[0]
+  if (typeof first === 'string') return first
+  return first?.src || first?.url || first?.crop_data_url || first?.data_url || null
+}
+
+function formatWater(value) {
+  const liters = Number(value) || 0
+  if (liters <= 0) return '0 L'
+  if (liters < 10) return `${liters.toFixed(1)} L`
+  if (liters < 1000) return `${Math.round(liters).toLocaleString()} L`
+  return `${(liters / 1000).toFixed(liters >= 10000 ? 0 : 1)} kL`
 }

@@ -48,6 +48,7 @@ def init_db():
     # against the managed schema and still works for the SQLite fallback.
     Base.metadata.create_all(bind=engine)
     _ensure_lot_metadata_columns()
+    _ensure_scan_run_columns()
 
 
 def _ensure_lot_metadata_columns():
@@ -58,13 +59,54 @@ def _ensure_lot_metadata_columns():
     columns = {col["name"] for col in inspector.get_columns("lots")}
     statements = []
     dialect = engine.dialect.name
+    has_scan_runs = inspector.has_table("scan_runs")
     if "lot_key" not in columns:
         statements.append("ALTER TABLE lots ADD COLUMN lot_key VARCHAR")
+    if "scan_run_id" not in columns:
+        if dialect == "postgresql" and has_scan_runs:
+            statements.append("ALTER TABLE lots ADD COLUMN scan_run_id INTEGER REFERENCES scan_runs(id) ON DELETE SET NULL")
+        else:
+            statements.append("ALTER TABLE lots ADD COLUMN scan_run_id INTEGER")
     if "piece_images" not in columns:
         if dialect == "postgresql":
             statements.append("ALTER TABLE lots ADD COLUMN piece_images JSONB DEFAULT '[]'::jsonb")
         else:
             statements.append("ALTER TABLE lots ADD COLUMN piece_images JSON DEFAULT '[]'")
+
+    if not statements:
+        return
+    with engine.begin() as conn:
+        for statement in statements:
+            conn.execute(text(statement))
+
+
+def _ensure_scan_run_columns():
+    """Keep local SQLite/Postgres dev databases compatible with ScanRun."""
+    inspector = inspect(engine)
+    if not inspector.has_table("scan_runs"):
+        return
+    columns = {col["name"] for col in inspector.get_columns("scan_runs")}
+    dialect = engine.dialect.name
+    statements = []
+    expected = {
+        "annotated_image_data_url": "TEXT",
+        "image_width": "INTEGER DEFAULT 0",
+        "image_height": "INTEGER DEFAULT 0",
+        "piece_count": "INTEGER DEFAULT 0",
+        "group_count": "INTEGER DEFAULT 0",
+        "total_weight_kg": "FLOAT DEFAULT 0",
+        "total_carbon_saved_kg": "FLOAT DEFAULT 0",
+        "total_water_saved_l": "FLOAT DEFAULT 0",
+        "created_at": "TIMESTAMP",
+    }
+    for name, sql_type in expected.items():
+        if name not in columns:
+            statements.append(f"ALTER TABLE scan_runs ADD COLUMN {name} {sql_type}")
+    if "summary" not in columns:
+        if dialect == "postgresql":
+            statements.append("ALTER TABLE scan_runs ADD COLUMN summary JSONB DEFAULT '{}'::jsonb")
+        else:
+            statements.append("ALTER TABLE scan_runs ADD COLUMN summary JSON DEFAULT '{}'")
 
     if not statements:
         return

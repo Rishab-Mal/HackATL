@@ -133,7 +133,10 @@ def calculate_base_price(
         * _weight_multiplier(weight_kg)
         * _piece_multiplier(piece_count)
     )
-    return round(per_kg * weight_kg, 2)
+    price = round(per_kg * weight_kg, 2)
+    if weight_kg > 0 and piece_count > 0 and price == 0:
+        return 0.01
+    return price
 
 
 # ---------------------------------------------------------------------------
@@ -149,7 +152,10 @@ def current_price(base_price: float, created_at: datetime) -> float:
     days = (datetime.utcnow() - created_at).total_seconds() / 86_400
     decay_days = max(0.0, days - GRACE_DAYS)
     factor = max(FLOOR_PCT, math.exp(-DECAY_RATE * decay_days))
-    return round(base_price * factor, 2)
+    price = round(base_price * factor, 2)
+    if base_price > 0 and price == 0:
+        return 0.01
+    return price
 
 
 def decay_pct(base_price: float, created_at: datetime) -> int:
