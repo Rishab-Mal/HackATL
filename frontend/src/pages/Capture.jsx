@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { createLot, detectScrap, resetDemoData } from '../api.js'
 import { useAuth } from '../context/AuthContext.jsx'
 import { ReweaveLogo } from '../components/ReweaveMark.jsx'
+import DestinationAnalysis from '../components/DestinationAnalysis.jsx'
 
 // Factory worker scanning flow. Person 1 (vision) owns the /api/vision/detect
 // response shape this screen renders -- see backend/app/schemas.py:
@@ -23,6 +24,7 @@ export default function Capture() {
   const [result, setResult] = useState(null)
   const [error, setError] = useState(null)
   const [packed, setPacked] = useState(() => new Set())
+  const [expandedAnalysis, setExpandedAnalysis] = useState(() => new Set())
   const [finishedBatch, setFinishedBatch] = useState(null)
   const [statusIdx, setStatusIdx] = useState(0)
   const [zoomOpen, setZoomOpen] = useState(false)
@@ -85,6 +87,15 @@ export default function Capture() {
     const summary = buildListingSummary(result)
     setFinishedBatch(summary)
     setStage('listed')
+  }
+
+  function toggleAnalysis(key) {
+    setExpandedAnalysis((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
   }
 
   function togglePacked(key) {
@@ -313,36 +324,47 @@ export default function Capture() {
                 const key = group.sort_group_id || group.color_name
                 const letter = group.sort_group_id || String.fromCharCode(65 + i)
                 const isPacked = packed.has(key)
+                const isAnalysisOpen = expandedAnalysis.has(key)
                 const chip = group.outline_color || group.color_hex
                 const count = group.piece_count
                 return (
-                  <button
-                    type="button"
-                    key={key}
-                    className={`fx-box ${isPacked ? 'is-packed' : ''}`}
-                    onClick={() => togglePacked(key)}
-                  >
-                    <span
-                      className="fx-box-chip"
-                      style={{ background: chip, color: readableOn(chip) }}
+                  <div key={key} className="fx-box-wrap">
+                    <button
+                      type="button"
+                      className={`fx-box ${isPacked ? 'is-packed' : ''}`}
+                      onClick={() => togglePacked(key)}
                     >
-                      {letter}
-                    </span>
-                    <span className="fx-box-info">
-                      <span className="fx-box-code">Box {letter}</span>
-                      <span className="fx-box-name">
-                        {capitalize(group.color_name)}
-                        {group.fabric_type_guess ? ` - ${group.fabric_type_guess}` : ''}
+                      <span
+                        className="fx-box-chip"
+                        style={{ background: chip, color: readableOn(chip) }}
+                      >
+                        {letter}
                       </span>
-                      <span className="fx-box-data">
-                        {count} {count === 1 ? 'piece' : 'pieces'}
-                        {group.total_weight_label ? ` - ${group.total_weight_label}` : ''}
+                      <span className="fx-box-info">
+                        <span className="fx-box-code">Box {letter}</span>
+                        <span className="fx-box-name">
+                          {capitalize(group.color_name)}
+                          {group.fabric_type_guess ? ` - ${group.fabric_type_guess}` : ''}
+                        </span>
+                        <span className="fx-box-data">
+                          {count} {count === 1 ? 'piece' : 'pieces'}
+                          {group.total_weight_label ? ` - ${group.total_weight_label}` : ''}
+                        </span>
                       </span>
-                    </span>
-                    <span className="fx-box-check" aria-hidden="true">
-                      <IconCheck />
-                    </span>
-                  </button>
+                      <span className="fx-box-check" aria-hidden="true">
+                        <IconCheck />
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      className={`fx-analysis-toggle ${isAnalysisOpen ? 'is-open' : ''}`}
+                      onClick={() => toggleAnalysis(key)}
+                    >
+                      <IconChevron />
+                      AI destination analysis
+                    </button>
+                    {isAnalysisOpen && <DestinationAnalysis group={group} />}
+                  </div>
                 )
               })}
             </div>
@@ -539,6 +561,14 @@ function IconCheck() {
   return (
     <svg {...svgProps()}>
       <path d="M5 12.5l4.5 4.5L19 7" />
+    </svg>
+  )
+}
+
+function IconChevron() {
+  return (
+    <svg {...svgProps()}>
+      <path d="M6 9l6 6 6-6" />
     </svg>
   )
 }

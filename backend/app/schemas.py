@@ -199,3 +199,38 @@ class ImpactSummary(BaseModel):
     total_water_saved_l: float
     equivalents: ImpactEquivalents
     fabric_breakdown: dict
+
+
+# ---------------------------------------------------------------------------
+# AI Material Destination Engine
+# ---------------------------------------------------------------------------
+
+
+class DestinationOption(BaseModel):
+    name: str
+    revenue_usd: float
+    co2_saved_kg: float
+    score: int
+
+
+class BuyerMatch(BaseModel):
+    name: str
+    match_pct: int
+
+
+class DestinationAnalysisRequest(BaseModel):
+    fabric_type: str
+    composition: str = ""
+    color_name: str = ""
+    weight_kg: float
+    material_family: Optional[str] = None
+
+
+class DestinationAnalysis(BaseModel):
+    recommended: DestinationOption
+    alternatives: List[DestinationOption]
+    recommended_buyers: List[BuyerMatch]
+    sale_probability_pct: int
+    expected_days_to_sale: float
+    environmental_equivalents: ImpactEquivalents
+    landfill_co2_saved_kg: float

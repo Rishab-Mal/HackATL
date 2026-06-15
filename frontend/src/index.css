@@ -2102,6 +2102,45 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   border-color: var(--f-green);
 }
 
+.factory-app .fx-box-wrap {
+  border-bottom: 1px solid var(--f-line);
+}
+
+.factory-app .fx-box-wrap .fx-box {
+  border-bottom: 0;
+}
+
+.factory-app .fx-analysis-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  padding: 0 0.1rem 0.6rem;
+  color: var(--f-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.factory-app .fx-analysis-toggle:hover {
+  color: var(--f-text);
+}
+
+.factory-app .fx-analysis-toggle svg {
+  width: 14px;
+  height: 14px;
+  transition: transform 0.15s ease;
+}
+
+.factory-app .fx-analysis-toggle.is-open svg {
+  transform: rotate(180deg);
+}
+
 .factory-app .fx-listed {
   gap: 1rem;
 }
