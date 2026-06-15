@@ -46,18 +46,35 @@ export default function BinFeed() {
   const current = lots[idx]
   const currentBin = current ? assignBin(current.color_name) : null
 
+  const totalPieces = Object.values(binCounts).reduce((a, b) => a + b, 0)
+
   return (
     <div className="binfeed">
-      <h1 className="binfeed-title">Live Bin Assignment</h1>
-      <p className="subtitle">Pieces detected by camera — place each in the indicated bin.</p>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 4 }}>
+        <h1 className="binfeed-title">Live Bin Assignment</h1>
+        {totalPieces > 0 && (
+          <span style={{
+            fontSize: 12, fontWeight: 600, color: 'var(--green-500)',
+            background: 'var(--green-50)', border: '1px solid var(--green-100)',
+            borderRadius: 'var(--r-full)', padding: '2px 10px'
+          }}>
+            {totalPieces} sorted this session
+          </span>
+        )}
+      </div>
+      <p className="subtitle">CV pipeline — place each scrap in the indicated bin.</p>
 
       {current ? (
         <div className={`binfeed-current ${flash ? 'binfeed-flash' : ''}`}>
           <div className="binfeed-piece">
             <div className="binfeed-swatch" style={{ background: current.color_hex }} />
             <div>
-              <div className="binfeed-piece-name">{current.color_name.toUpperCase()} · {current.fabric_type}</div>
-              <div className="binfeed-piece-meta">{current.composition} · {current.piece_count} pieces</div>
+              <div className="binfeed-piece-name">
+                {current.color_name.toUpperCase()} · {current.fabric_type}
+              </div>
+              <div className="binfeed-piece-meta">
+                {current.composition} · {current.piece_count} pcs · {current.weight_kg}kg
+              </div>
             </div>
           </div>
           <div className="binfeed-arrow">→</div>
@@ -67,7 +84,9 @@ export default function BinFeed() {
           </div>
         </div>
       ) : (
-        <div className="binfeed-waiting">Waiting for camera feed…</div>
+        <div className="binfeed-current">
+          <div className="binfeed-waiting">Waiting for camera feed…</div>
+        </div>
       )}
 
       <div className="binfeed-bins">

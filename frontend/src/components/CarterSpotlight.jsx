@@ -6,7 +6,7 @@ export default function CarterSpotlight() {
   return (
     <div className="spotlight">
       <div className="spotlight-eyebrow">
-        <span className="spotlight-badge">🌿 Pilot Program</span>
+        <span className="spotlight-badge">Pilot Program</span>
         <span className="spotlight-tag">Deal closed</span>
       </div>
 
@@ -19,7 +19,6 @@ export default function CarterSpotlight() {
       {/* Flow diagram */}
       <div className="spotlight-flow">
         <div className="flow-node">
-          <div className="flow-icon">🏭</div>
           <div className="flow-node-label">Carter's Supplier</div>
           <div className="flow-node-detail">Batch 18 — kids' pants line<br />100% cotton twill offcuts</div>
         </div>
@@ -27,7 +26,6 @@ export default function CarterSpotlight() {
         <div className="flow-arrow">→</div>
 
         <div className="flow-node flow-node--accent">
-          <div className="flow-icon">🧵</div>
           <div className="flow-node-label">Scrap Sorter</div>
           <div className="flow-node-detail">Photo upload → AI detection<br />Sorted into navy lot in &lt;30 s</div>
         </div>
@@ -35,7 +33,6 @@ export default function CarterSpotlight() {
         <div className="flow-arrow">→</div>
 
         <div className="flow-node">
-          <div className="flow-icon">♻️</div>
           <div className="flow-node-label">Looptex Recyclers</div>
           <div className="flow-node-detail">Atlanta, GA<br />Reclaimed yarn for industrial use</div>
         </div>

@@ -1,15 +1,15 @@
 import { useEffect, useState } from 'react'
-import { claimLot, getBuyers, getLotFilterOptions, getLots } from '../api.js'
+import { getBuyers, getLotFilterOptions, getLots } from '../api.js'
+import { useCart } from '../context/CartContext.jsx'
 import ActivityFeed from '../components/ActivityFeed.jsx'
 import CarterSpotlight from '../components/CarterSpotlight.jsx'
 import LotFilters from '../components/LotFilters.jsx'
 
-// Person 3 (frontend) owns this screen. Person 4 (marketplace, impact logic,
-// demo data) owns buyer profiles and the lot-claiming flow.
-
 const EMPTY_FILTERS = { fabric_type: '', color_name: '', min_price: '', max_price: '' }
 
 export default function Marketplace() {
+  const { cart, addToCart, removeFromCart, lastSuccess } = useCart()
+
   const [lots, setLots] = useState([])
   const [buyers, setBuyers] = useState([])
   const [options, setOptions] = useState(null)
@@ -17,52 +17,34 @@ export default function Marketplace() {
   const [error, setError] = useState(null)
   const [selectedBuyer, setSelectedBuyer] = useState({})
   const [activityVersion, setActivityVersion] = useState(0)
-  const [claimModal, setClaimModal] = useState(null) // { lot, buyerName, status: 'confirm' | 'sending' | 'done' }
 
   useEffect(() => {
-    getLotFilterOptions().then(setOptions).catch((err) => setError(err.message))
-    getBuyers().then(setBuyers).catch((err) => setError(err.message))
+    getLotFilterOptions().then(setOptions).catch(err => setError(err.message))
+    getBuyers().then(setBuyers).catch(err => setError(err.message))
   }, [])
 
   function refreshLots() {
-    getLots({ status: 'available', ...filters }).then(setLots).catch((err) => setError(err.message))
+    getLots({ status: 'available', ...filters }).then(setLots).catch(err => setError(err.message))
   }
 
   useEffect(refreshLots, [filters])
 
-  function openClaimConfirm(lot) {
-    const buyerName = selectedBuyer[lot.id]
-    if (!buyerName) return
-    setClaimModal({ lot, buyerName, status: 'confirm' })
-  }
-
-  async function confirmClaim() {
-    if (!claimModal) return
-    setClaimModal({ ...claimModal, status: 'sending' })
-    try {
-      await claimLot(claimModal.lot.id, claimModal.buyerName)
-      setClaimModal({ ...claimModal, status: 'done' })
+  // Re-fetch lots when a checkout completes (lastSuccess changes)
+  useEffect(() => {
+    if (lastSuccess) {
       refreshLots()
-      setActivityVersion((v) => v + 1)
-    } catch (err) {
-      setError(err.message)
-      setClaimModal(null)
+      setActivityVersion(v => v + 1)
     }
-  }
-
-  function closeClaimModal() {
-    setClaimModal(null)
-  }
+  }, [lastSuccess])
 
   return (
     <div className="page">
       <h1>Marketplace</h1>
-      <p className="subtitle">Recyclers and makers who can claim available scrap lots.</p>
+      <p className="subtitle">Assign available lots to recyclers and makers.</p>
 
       {error && <div className="error">{error}</div>}
 
       <CarterSpotlight />
-
       <ActivityFeed refreshKey={activityVersion} />
 
       <h2>Available lots</h2>
@@ -73,98 +55,82 @@ export default function Marketplace() {
       </p>
 
       <div className="lot-grid">
-        {lots.map((lot) => (
-          <div className="lot-card" key={lot.id}>
-            <div className="swatch" style={{ background: lot.color_hex }} />
-            <div className="lot-info">
-              <h3>{lot.name}</h3>
-              <p>
-                {lot.fabric_type} · {lot.weight_kg} kg ·{' '}
-                <span className="lot-price">
-                  ${lot.current_price_usd.toFixed(2)}
-                  {lot.price_decay_pct > 0 && (
-                    <span className="decay-badge">↓{lot.price_decay_pct}%</span>
+        {lots.map(lot => {
+          const inCart = !!cart[lot.id]
+          const buyer = selectedBuyer[lot.id] || ''
+
+          return (
+            <div className="lot-card" key={lot.id}>
+              <div className="swatch" style={{ background: lot.color_hex }} />
+              <div className="lot-info">
+                <h3>{lot.name}</h3>
+                <p className="muted">{lot.fabric_type} · {(lot.weight_kg * 2.205).toFixed(1)} lb</p>
+                <div className="lot-stats">
+                  <span className="lot-price">
+                    ${lot.current_price_usd.toFixed(2)}
+                    {lot.price_decay_pct > 0 && (
+                      <span className="decay-badge">↓{lot.price_decay_pct}%</span>
+                    )}
+                  </span>
+                </div>
+                {lot.description && <p className="lot-description">{lot.description}</p>}
+                {lot.price_decay_pct > 0 && (
+                  <p className="muted decay-hint">
+                    Listed {lot.days_listed}d ago · was ${lot.price_usd.toFixed(2)}
+                  </p>
+                )}
+                <div className="claim-row">
+                  <select
+                    value={buyer}
+                    onChange={e => setSelectedBuyer(prev => ({ ...prev, [lot.id]: e.target.value }))}
+                    disabled={inCart}
+                  >
+                    <option value="" disabled>Choose buyer</option>
+                    {buyers.map(b => (
+                      <option key={b.id} value={b.name}>{b.name}</option>
+                    ))}
+                  </select>
+                  {inCart ? (
+                    <button
+                      style={{ background: 'var(--green-700)', fontSize: 12, padding: '6px 10px' }}
+                      onClick={() => removeFromCart(lot.id)}
+                    >
+                      ✓ In cart
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => addToCart(lot, buyer)}
+                      disabled={!buyer}
+                      style={{ fontSize: 12, padding: '6px 10px' }}
+                    >
+                      Add to cart
+                    </button>
                   )}
-                </span>
-              </p>
-              {lot.description && <p className="lot-description">{lot.description}</p>}
-              {lot.price_decay_pct > 0 && (
-                <p className="muted decay-hint">Listed {lot.days_listed}d ago · was ${lot.price_usd.toFixed(2)}</p>
-              )}
-              <div className="claim-row">
-                <select
-                  defaultValue=""
-                  onChange={(e) => setSelectedBuyer({ ...selectedBuyer, [lot.id]: e.target.value })}
-                >
-                  <option value="" disabled>
-                    Choose buyer
-                  </option>
-                  {buyers.map((b) => (
-                    <option key={b.id} value={b.name}>
-                      {b.name}
-                    </option>
-                  ))}
-                </select>
-                <button onClick={() => openClaimConfirm(lot)} disabled={!selectedBuyer[lot.id]}>
-                  Claim lot
-                </button>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
-        {lots.length === 0 && !error && <p className="muted">No available lots match these filters.</p>}
+          )
+        })}
+        {lots.length === 0 && !error && (
+          <p className="muted">No available lots match these filters.</p>
+        )}
       </div>
 
       <h2>Recyclers &amp; makers</h2>
       <div className="buyer-grid">
-        {buyers.map((b) => (
+        {buyers.map(b => (
           <div className="buyer-card" key={b.id}>
             <h3>{b.name}</h3>
-            <span className="buyer-type">
-              {b.type} - {b.location}
-            </span>
+            <span className="buyer-type">{b.type} · {b.location}</span>
             <p>{b.description}</p>
             <div className="tags">
-              {b.interested_materials.map((m) => (
-                <span className="tag" key={m}>
-                  {m}
-                </span>
+              {b.interested_materials.map(m => (
+                <span className="tag" key={m}>{m}</span>
               ))}
             </div>
           </div>
         ))}
       </div>
-
-      {claimModal && (
-        <div className="modal-overlay" onClick={closeClaimModal}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            {claimModal.status === 'done' ? (
-              <>
-                <p className="modal-success">Request sent to {claimModal.buyerName} ✓</p>
-                <div className="modal-actions">
-                  <button onClick={closeClaimModal}>Done</button>
-                </div>
-              </>
-            ) : (
-              <>
-                <h3>Confirm claim</h3>
-                <p>
-                  Send a claim request for <strong>{claimModal.lot.name}</strong> to{' '}
-                  <strong>{claimModal.buyerName}</strong>?
-                </p>
-                <div className="modal-actions">
-                  <button type="button" onClick={closeClaimModal} disabled={claimModal.status === 'sending'}>
-                    Cancel
-                  </button>
-                  <button onClick={confirmClaim} disabled={claimModal.status === 'sending'}>
-                    {claimModal.status === 'sending' ? 'Sending...' : 'Confirm'}
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   )
 }

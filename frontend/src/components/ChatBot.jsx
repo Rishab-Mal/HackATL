@@ -56,7 +56,7 @@ export default function ChatBot() {
     <>
       {/* Floating toggle button */}
       <button className="chat-toggle" onClick={() => setOpen(o => !o)} aria-label="Open chat">
-        {open ? '✕' : '💬'}
+        {open ? '✕' : 'AI'}
       </button>
 
       {/* Chat panel */}
@@ -64,7 +64,7 @@ export default function ChatBot() {
         <div className="chat-panel">
           <div className="chat-header">
             <div className="chat-header-info">
-              <span className="chat-avatar">🌿</span>
+              <span className="chat-avatar" style={{ width: 22, height: 22, borderRadius: 4, background: 'var(--c-accent)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800, color: '#fff', flexShrink: 0 }}>AI</span>
               <div>
                 <div className="chat-name">ScrapBot</div>
                 <div className="chat-status">Online</div>
