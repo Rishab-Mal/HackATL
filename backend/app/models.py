@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Column, DateTime, Float, Integer, String, Text
+from sqlalchemy import Column, DateTime, Float, Integer, JSON, String, Text
 
 from .database import Base
 
@@ -21,6 +21,8 @@ class Lot(Base):
     composition = Column(String, nullable=False)
     color_name = Column(String, nullable=False)
     color_hex = Column(String, nullable=False)
+    lot_key = Column(String, nullable=True, index=True)
+    piece_images = Column(JSON, default=list)
     piece_count = Column(Integer, default=0)
     weight_kg = Column(Float, default=0.0)
     # Computed at listing time

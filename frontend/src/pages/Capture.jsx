@@ -75,7 +75,7 @@ export default function Capture() {
     autoSavedRef.current = true
     const groups = (res && res.groups) || []
     if (groups.length === 0) return
-    Promise.allSettled(groups.map((g) => createLot(buildLotPayload(g)))).then((results) => {
+    Promise.allSettled(groups.map((g) => createLot(buildLotPayload(g, res)))).then((results) => {
       const failed = results.filter((r) => r.status === 'rejected')
       if (failed.length) console.warn('Some lots could not be listed:', failed)
       })
@@ -606,18 +606,82 @@ function buildListingSummary(res) {
   }
 }
 
-function buildLotPayload(group) {
+function buildLotPayload(group, res) {
+  const weightG = Number(group.estimated_weight_g) || 0
+  const weightLabel = group.total_weight_label || (weightG ? formatWeight(weightG) : 'weight pending')
+  const groupedPieces = piecesForGroup(group, res)
+  const images = extractPieceImages(groupedPieces)
+  const fallbackImages = images.length ? [] : extractPieceImages(Array.isArray(res?.pieces) ? res.pieces : [])
+  const pieceImages = images.length ? images : fallbackImages
+  const pieces = groupedPieces.length ? groupedPieces : (Array.isArray(res?.pieces) ? res.pieces : [])
+  const count = Number(group.piece_count) || pieces.length || 0
+  const fabric = group.fabric_type_guess || 'Unspecified'
+  const composition = group.composition_guess || 'Unspecified'
+
+  if (pieceImages.length === 0) {
+    console.warn('No crop thumbnails were found for group', group.sort_group_id || group.color_name)
+  }
+
   return {
-    name: `${capitalize(group.color_name)} ${group.fabric_type_guess || 'Scraps'}`.trim(),
-    description: group.sort_instruction || '',
-    fabric_type: group.fabric_type_guess || 'Unspecified',
-    composition: group.composition_guess || 'Unspecified',
+    name: `${capitalize(group.color_name)} ${fabric}`.trim(),
+    description: [
+      `${count} ${count === 1 ? 'piece' : 'pieces'} of ${group.color_name} ${fabric}`,
+      `${weightLabel} estimated total`,
+      composition !== 'Unspecified' ? composition : '',
+      group.sort_instruction || '',
+    ].filter(Boolean).join('. '),
+    fabric_type: fabric,
+    composition,
     color_name: group.color_name,
     color_hex: group.color_hex,
-    piece_count: group.piece_count,
-    weight_kg: group.estimated_weight_g ? Number((group.estimated_weight_g / 1000).toFixed(3)) : 0,
+    lot_key: makeLotKey(fabric, composition, group.color_name),
+    piece_images: pieceImages.slice(0, 12),
+    piece_count: count,
+    weight_kg: weightG ? Number((weightG / 1000).toFixed(3)) : 0,
     price_usd: 0, // let the backend auto-price (see routers/lots.py:create_lot)
   }
+}
+
+function extractPieceImages(pieces) {
+  return (Array.isArray(pieces) ? pieces : [])
+    .filter((piece) => piece.crop_data_url)
+    .slice(0, 12)
+    .map((piece) => ({
+      src: piece.crop_data_url,
+      piece_id: piece.id,
+      color_name: piece.color_name,
+      weight_label: piece.weight_label,
+      size_label: piece.size_label,
+    }))
+}
+
+function piecesForGroup(group, res) {
+  const pieces = Array.isArray(res?.pieces) ? res.pieces : []
+  const pieceIds = new Set((group?.piece_ids || []).map((id) => Number(id)))
+  const sortGroupId = group?.sort_group_id
+  const colorName = String(group?.color_name || '').toLowerCase()
+  const fabricGuess = String(group?.fabric_type_guess || '').toLowerCase()
+
+  const byIds = pieces.filter((piece) => pieceIds.has(Number(piece.id)))
+  if (byIds.length) return byIds
+
+  const bySortGroup = pieces.filter((piece) => String(piece.sort_group_id || '') === String(sortGroupId || ''))
+  if (bySortGroup.length) return bySortGroup
+
+  const byColorAndFabric = pieces.filter((piece) => {
+    const matchesColor = String(piece.color_name || '').toLowerCase() === colorName
+    const matchesFabric = !fabricGuess || String(piece.fabric_type_guess || '').toLowerCase() === fabricGuess
+    return matchesColor && matchesFabric
+  })
+  if (byColorAndFabric.length) return byColorAndFabric
+
+  return pieces.filter((piece) => String(piece.color_name || '').toLowerCase() === colorName)
+}
+
+function makeLotKey(fabricType, composition, colorName) {
+  return [fabricType, composition, colorName]
+    .map((part) => String(part || 'unspecified').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'unspecified')
+    .join('::')
 }
 
 function sortByBin(a, b) {

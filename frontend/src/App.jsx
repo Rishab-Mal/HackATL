@@ -39,6 +39,20 @@ function CartButton() {
   )
 }
 
+function formatWeight(kg) {
+  const value = Number(kg) || 0
+  if (value <= 0) return '0 g'
+  if (value >= 1) return `${value >= 10 ? value.toFixed(1) : value.toFixed(2)} kg`
+  return `${Math.max(1, Math.round(value * 1000))} g`
+}
+
+function cartItemPrice({ lot, qty }) {
+  const totalWeight = Number(lot.weight_kg) || 0
+  const totalPrice = Number(lot.current_price_usd) || 0
+  if (!qty || qty >= totalWeight || totalWeight <= 0) return totalPrice
+  return Number((totalPrice * (qty / totalWeight)).toFixed(2))
+}
+
 function CheckoutPanel() {
   const { user } = useAuth()
   const { items, total, removeFromCart, checkout, isOpen, setIsOpen, placing } = useCart()
@@ -71,11 +85,11 @@ function CheckoutPanel() {
                   : <div className="checkout-item-buyer">→ {user?.name}</div>
                 }
                 <div className="checkout-item-meta">
-                  {lot.fabric_type} · {qty ? `${(qty * 2.205).toFixed(1)} lb` : `${(lot.weight_kg * 2.205).toFixed(1)} lb`}
+                  {lot.fabric_type} · {formatWeight(qty || lot.weight_kg)}
                 </div>
               </div>
               <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                <div className="checkout-item-price">${lot.current_price_usd.toFixed(2)}</div>
+                <div className="checkout-item-price">${cartItemPrice({ lot, qty }).toFixed(2)}</div>
                 <button className="cart-remove" style={{ marginTop: 4 }} onClick={() => removeFromCart(lot.id)}>
                   Remove
                 </button>

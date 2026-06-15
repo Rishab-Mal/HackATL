@@ -95,6 +95,8 @@ class LotCreate(BaseModel):
     composition: str
     color_name: str
     color_hex: str
+    lot_key: Optional[str] = None
+    piece_images: List[dict[str, Any]] = Field(default_factory=list)
     piece_count: int = 0
     weight_kg: float = 0.0
     price_usd: float = 0.0
@@ -110,6 +112,8 @@ class LotOut(BaseModel):
     composition: str
     color_name: str
     color_hex: str
+    lot_key: Optional[str] = None
+    piece_images: List[dict[str, Any]] = Field(default_factory=list)
     piece_count: int
     weight_kg: float
     price_usd: float          # base price at time of listing
@@ -126,6 +130,7 @@ class LotOut(BaseModel):
 
 class LotClaim(BaseModel):
     buyer_name: str
+    quantity_kg: Optional[float] = None
 
 
 class ColorOption(BaseModel):

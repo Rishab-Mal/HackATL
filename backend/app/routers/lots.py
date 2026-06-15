@@ -3,6 +3,7 @@ inventory. Owned by Person 2 (backend, lots, and factory records).
 """
 
 from datetime import datetime
+import re
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -17,6 +18,27 @@ from ..pricing import calculate_base_price, current_price, decay_pct, days_liste
 router = APIRouter(prefix="/api/lots", tags=["lots"])
 
 
+def _lot_key(fabric_type: str, composition: str, color_name: str) -> str:
+    parts = [fabric_type, composition, color_name]
+    cleaned = []
+    for part in parts:
+        value = re.sub(r"[^a-z0-9]+", "-", (part or "unspecified").strip().lower())
+        cleaned.append(value.strip("-") or "unspecified")
+    return "::".join(cleaned)
+
+
+def _image_list(value) -> list[dict]:
+    if isinstance(value, list):
+        normalized = []
+        for img in value:
+            if isinstance(img, str) and img:
+                normalized.append({"src": img})
+            elif isinstance(img, dict) and img.get("src"):
+                normalized.append(img)
+        return normalized
+    return []
+
+
 def _enrich(lot: models.Lot) -> schemas.LotOut:
     """Convert a Lot ORM object to LotOut, injecting computed price/decay fields."""
     return schemas.LotOut(
@@ -27,6 +49,8 @@ def _enrich(lot: models.Lot) -> schemas.LotOut:
         composition=lot.composition,
         color_name=lot.color_name,
         color_hex=lot.color_hex,
+        lot_key=lot.lot_key or _lot_key(lot.fabric_type, lot.composition, lot.color_name),
+        piece_images=_image_list(lot.piece_images),
         piece_count=lot.piece_count,
         weight_kg=lot.weight_kg,
         price_usd=lot.price_usd,
@@ -44,6 +68,37 @@ def _enrich(lot: models.Lot) -> schemas.LotOut:
 
 @router.post("", response_model=schemas.LotOut)
 def create_lot(lot: schemas.LotCreate, db: Session = Depends(get_db)):
+    lot_key = lot.lot_key or _lot_key(lot.fabric_type, lot.composition, lot.color_name)
+    existing = (
+        db.query(models.Lot)
+        .filter(models.Lot.status == "available", models.Lot.lot_key == lot_key)
+        .order_by(models.Lot.created_at.asc())
+        .first()
+    )
+
+    if existing:
+        existing.weight_kg = round((existing.weight_kg or 0) + lot.weight_kg, 3)
+        existing.piece_count = (existing.piece_count or 0) + lot.piece_count
+        existing.carbon_saved_kg = round(existing.weight_kg * CARBON_PER_KG, 2)
+        existing.water_saved_l = round(existing.weight_kg * WATER_PER_KG, 2)
+        existing.price_usd = (
+            round((existing.price_usd or 0) + lot.price_usd, 2)
+            if lot.price_usd > 0
+            else calculate_base_price(
+                fabric_type=existing.fabric_type,
+                composition=existing.composition,
+                color_name=existing.color_name,
+                weight_kg=existing.weight_kg,
+                piece_count=existing.piece_count,
+            )
+        )
+        existing.piece_images = (_image_list(existing.piece_images) + _image_list(lot.piece_images))[:24]
+        if lot.description and lot.description not in (existing.description or ""):
+            existing.description = "; ".join(filter(None, [existing.description, lot.description]))[:1200]
+        db.commit()
+        db.refresh(existing)
+        return _enrich(existing)
+
     base_price = lot.price_usd if lot.price_usd > 0 else calculate_base_price(
         fabric_type=lot.fabric_type,
         composition=lot.composition,
@@ -52,8 +107,11 @@ def create_lot(lot: schemas.LotCreate, db: Session = Depends(get_db)):
         piece_count=lot.piece_count,
     )
 
+    data = lot.model_dump()
+    data["lot_key"] = lot_key
+    data["piece_images"] = _image_list(data.get("piece_images"))
     db_lot = models.Lot(
-        **{**lot.model_dump(), "price_usd": base_price},
+        **{**data, "price_usd": base_price},
         carbon_saved_kg=round(lot.weight_kg * CARBON_PER_KG, 2),
         water_saved_l=round(lot.weight_kg * WATER_PER_KG, 2),
     )
@@ -126,13 +184,56 @@ def claim_lot(lot_id: int, claim: schemas.LotClaim, db: Session = Depends(get_db
         raise HTTPException(status_code=404, detail="Lot not found")
     if lot.status == "claimed":
         raise HTTPException(status_code=400, detail="Lot already claimed")
+    if lot.status != "available":
+        raise HTTPException(status_code=400, detail="Lot is not available")
 
-    lot.status = "claimed"
-    lot.claimed_by = claim.buyer_name
-    lot.claimed_at = datetime.utcnow()
+    quantity_kg = claim.quantity_kg
+    if quantity_kg is not None:
+        quantity_kg = round(float(quantity_kg), 3)
+        if quantity_kg <= 0:
+            raise HTTPException(status_code=400, detail="Quantity must be greater than zero")
+
+    if quantity_kg is None or quantity_kg >= (lot.weight_kg or 0) - 0.001:
+        lot.status = "claimed"
+        lot.claimed_by = claim.buyer_name
+        lot.claimed_at = datetime.utcnow()
+        claimed = lot
+    else:
+        if quantity_kg > (lot.weight_kg or 0):
+            raise HTTPException(status_code=400, detail="Quantity exceeds available weight")
+        ratio = quantity_kg / lot.weight_kg if lot.weight_kg else 0
+        claimed_pieces = max(1, round((lot.piece_count or 0) * ratio))
+        claimed_images = _image_list(lot.piece_images)[:claimed_pieces]
+        claimed = models.Lot(
+            name=lot.name,
+            description=lot.description,
+            fabric_type=lot.fabric_type,
+            composition=lot.composition,
+            color_name=lot.color_name,
+            color_hex=lot.color_hex,
+            lot_key=lot.lot_key,
+            piece_images=claimed_images,
+            piece_count=claimed_pieces,
+            weight_kg=quantity_kg,
+            price_usd=round((lot.price_usd or 0) * ratio, 2),
+            carbon_saved_kg=round((lot.carbon_saved_kg or 0) * ratio, 2),
+            water_saved_l=round((lot.water_saved_l or 0) * ratio, 2),
+            status="claimed",
+            claimed_by=claim.buyer_name,
+            claimed_at=datetime.utcnow(),
+            created_at=lot.created_at,
+        )
+        lot.weight_kg = round(lot.weight_kg - quantity_kg, 3)
+        lot.piece_count = max(0, (lot.piece_count or 0) - claimed_pieces)
+        lot.price_usd = round((lot.price_usd or 0) - claimed.price_usd, 2)
+        lot.carbon_saved_kg = round((lot.carbon_saved_kg or 0) - claimed.carbon_saved_kg, 2)
+        lot.water_saved_l = round((lot.water_saved_l or 0) - claimed.water_saved_l, 2)
+        remaining_images = _image_list(lot.piece_images)[claimed_pieces:]
+        lot.piece_images = remaining_images or _image_list(lot.piece_images)
+        db.add(claimed)
     db.commit()
-    db.refresh(lot)
-    return _enrich(lot)
+    db.refresh(claimed)
+    return _enrich(claimed)
 
 
 @router.patch("/{lot_id}/delist", response_model=schemas.LotOut)

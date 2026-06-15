@@ -65,11 +65,13 @@ export function getActivity() {
   return request('/marketplace/activity')
 }
 
-export function claimLot(lotId, buyerName) {
+export function claimLot(lotId, buyerName, quantityKg = null) {
+  const body = { buyer_name: buyerName }
+  if (quantityKg !== undefined && quantityKg !== null) body.quantity_kg = quantityKg
   return request(`/lots/${lotId}/claim`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ buyer_name: buyerName }),
+    body: JSON.stringify(body),
   })
 }
 
