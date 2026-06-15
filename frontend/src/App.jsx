@@ -6,6 +6,8 @@ import ChatBot from './components/ChatBot.jsx'
 import ErrorBoundary from './components/ErrorBoundary.jsx'
 
 import Login from './pages/Login.jsx'
+import LandingPage from './pages/LandingPage.jsx'
+import { FibrBadge, FibrWordmark } from './components/FibrMark.jsx'
 
 // Factory portal
 import Capture from './pages/Capture.jsx'
@@ -132,8 +134,8 @@ function PortalNav() {
   return (
     <header className="nav">
       <div className="brand">
-        <div className="brand-icon">SS</div>
-        Scrap Sorter
+        <FibrBadge size={26} />
+        <FibrWordmark size={18} />
         <span className="portal-badge">{roleLabel[user.role]}</span>
       </div>
       <nav>
@@ -154,16 +156,25 @@ function AppInner() {
   const location = useLocation()
   const { lastSuccess } = useCart()
 
+  // Factory routes use their own full-screen operator shell (FactoryHeader + dark UI)
+  const isFactory = location.pathname.startsWith('/factory')
+
+  // Landing page gets its own full-screen layout — no portal chrome, no content wrapper
+  const isLanding = !user && (location.pathname === '/' || location.pathname === '/login')
+  if (isLanding) {
+    return <LandingPage />
+  }
+
   return (
     <div className="app">
-      <PortalNav />
+      {!isFactory && <PortalNav />}
       {lastSuccess && (
         <div className="global-success-banner">{lastSuccess}</div>
       )}
-      <main className="content">
+      <main className={isFactory ? 'content content-bleed' : 'content'}>
         <ErrorBoundary key={location.pathname}>
           <Routes>
-            <Route path="/login" element={user ? <Navigate to={`/${user.role}`} replace /> : <Login />} />
+            <Route path="/login" element={user ? <Navigate to={`/${user.role}`} replace /> : <LandingPage />} />
 
             {/* Factory */}
             <Route path="/factory" element={<ProtectedRoute role="factory"><Capture /></ProtectedRoute>} />
@@ -178,15 +189,14 @@ function AppInner() {
             <Route path="/buyer" element={<ProtectedRoute role="buyer"><BuyerMarketplace /></ProtectedRoute>} />
             <Route path="/buyer/marketplace" element={<ProtectedRoute role="buyer"><Marketplace /></ProtectedRoute>} />
 
-            {/* Root redirect */}
-            <Route path="/" element={<Navigate to={user ? `/${user.role}` : '/login'} replace />} />
-            <Route path="*" element={<Navigate to={user ? `/${user.role}` : '/login'} replace />} />
+            {/* Root: landing page for guests, portal home for authed users */}
+            <Route path="/" element={user ? <Navigate to={`/${user.role}`} replace /> : <LandingPage />} />
+            <Route path="*" element={<Navigate to={user ? `/${user.role}` : '/'} replace />} />
           </Routes>
         </ErrorBoundary>
       </main>
       <CheckoutPanel />
-      <ChatBot />
-
+      {!isFactory && <ChatBot />}
     </div>
   )
 }
