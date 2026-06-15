@@ -34,15 +34,18 @@ def segment_with_replicate(image_bgr, token: str, model: str, max_masks: int = 8
     if not ok:
         raise SegmentationError("Could not encode image for Replicate")
 
-    with tempfile.NamedTemporaryFile(suffix=".png") as tmp:
+    tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
+    try:
         tmp.write(encoded.tobytes())
-        tmp.flush()
+        tmp.close()
         with open(tmp.name, "rb") as image_file:
             input_payload = _input_payload(model, image_file, max_masks=max_masks)
             try:
                 output = replicate.run(_resolved_ref(replicate, model), input=input_payload)
             except Exception as exc:
                 raise SegmentationError(f"Replicate SAM call failed: {exc}") from exc
+    finally:
+        os.unlink(tmp.name)
 
     masks = _extract_masks(output, image_bgr.shape[:2])
     if not masks:

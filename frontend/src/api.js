@@ -96,3 +96,15 @@ export function delistLot(lotId) {
 export function relistLot(lotId) {
   return request(`/lots/${lotId}/relist`, { method: 'PATCH' })
 }
+
+// ---------------------------------------------------------------------------
+// AI Material Destination Engine
+// ---------------------------------------------------------------------------
+
+export function analyzeDestinations(payload) {
+  return request('/destinations/analyze', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+}

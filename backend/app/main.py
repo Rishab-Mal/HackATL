@@ -8,7 +8,7 @@ load_dotenv(os.path.join(os.path.dirname(__file__), "..", "..", ".env"))
 
 from .database import SessionLocal, init_db
 from .routers import factory, lots, marketplace, vision
-from .routers import chat, auth, admin
+from .routers import chat, auth, admin, destinations
 from .seed import seed_data
 
 app = FastAPI(title="Scrap Sorter API")
@@ -28,6 +28,7 @@ app.include_router(marketplace.impact_router)
 app.include_router(chat.router)
 app.include_router(auth.router)
 app.include_router(admin.router)
+app.include_router(destinations.router)
 
 
 @app.on_event("startup")
