@@ -84,3 +84,11 @@ export function delistLot(lotId) {
 export function relistLot(lotId) {
   return request(`/lots/${lotId}/relist`, { method: 'PATCH' })
 }
+
+// ---------------------------------------------------------------------------
+// Demo reset — wipes all scanned lots (keeps logins + buyers)
+// ---------------------------------------------------------------------------
+
+export function resetDemoData() {
+  return request('/admin/reset-demo', { method: 'POST' })
+}

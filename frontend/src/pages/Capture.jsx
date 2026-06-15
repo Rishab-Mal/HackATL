@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { createLot, detectScrap } from '../api.js'
+import { createLot, detectScrap, resetDemoData } from '../api.js'
 import { useAuth } from '../context/AuthContext.jsx'
 
 // Factory worker scanning flow. Person 1 (vision) owns the /api/vision/detect
@@ -450,6 +450,20 @@ export default function Capture() {
 
 export function FactoryHeader() {
   const { logout } = useAuth()
+  const [resetting, setResetting] = useState(false)
+
+  async function handleReset() {
+    if (resetting) return
+    if (!window.confirm('Reset the demo? This permanently deletes all scanned lots and clears the marketplace. Logins and buyers stay.')) return
+    setResetting(true)
+    try {
+      await resetDemoData()
+      window.location.reload()
+    } catch (err) {
+      setResetting(false)
+      alert('Reset failed: ' + (err?.message || 'unknown error'))
+    }
+  }
 
   return (
     <header className="fx-header">
@@ -457,9 +471,14 @@ export function FactoryHeader() {
         <span className="fx-wordmark">Scrap Sorter</span>
       </Link>
 
-      <button type="button" className="fx-signout" onClick={logout}>
-        Sign out
-      </button>
+      <div className="fx-header-actions">
+        <button type="button" className="fx-reset" onClick={handleReset} disabled={resetting}>
+          {resetting ? 'Resetting…' : 'Reset demo'}
+        </button>
+        <button type="button" className="fx-signout" onClick={logout}>
+          Sign out
+        </button>
+      </div>
     </header>
   )
 }

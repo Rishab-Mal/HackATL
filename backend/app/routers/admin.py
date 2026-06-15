@@ -2,12 +2,14 @@
 
 from collections import defaultdict
 from datetime import datetime, timedelta
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from .. import models
 from ..database import get_db
 from ..pricing import current_price, days_listed, decay_pct
+from .auth import get_current_user
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -193,3 +195,33 @@ def get_metrics(db: Session = Depends(get_db)):
         "decay_alerts": decay_alerts[:8],
         "decay_alert_count": len(decay_alerts),
     }
+
+
+@router.post("/reset-demo")
+def reset_demo(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """Wipe all scanned lots so a fresh demo/pitch starts from a clean slate.
+
+    Only clears the `lots` table — the transactional data. Demo logins and the
+    buyer catalog (the "stage setup") are left untouched, so the marketplace
+    and admin metrics simply return to zero. Triggered from the factory header,
+    so the factory role is allowed (not just admin).
+    """
+    if current_user.role not in ("factory", "admin"):
+        raise HTTPException(status_code=403, detail="Not allowed")
+
+    deleted = db.query(models.Lot).delete()
+    db.commit()
+
+    # Cosmetic, best-effort: restart the id sequence so the next scan is lot #1.
+    # Postgres-only; never let it break the reset or the SQLite fallback.
+    try:
+        if db.bind.dialect.name == "postgresql":
+            db.execute(text("ALTER TABLE public.lots ALTER COLUMN id RESTART WITH 1"))
+            db.commit()
+    except Exception:
+        db.rollback()
+
+    return {"status": "ok", "deleted_lots": deleted}

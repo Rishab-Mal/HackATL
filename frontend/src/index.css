@@ -1275,6 +1275,34 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   background: var(--f-surface);
 }
 
+.factory-app .fx-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.factory-app .fx-reset {
+  color: var(--f-muted);
+  background: transparent;
+  border: 1px solid var(--f-line);
+  border-radius: 8px;
+  padding: 0.48rem 0.72rem;
+  font-size: 0.86rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.factory-app .fx-reset:hover:not(:disabled) {
+  color: #f7b4a3;
+  border-color: #7a3b30;
+  background: rgba(122, 59, 48, 0.18);
+}
+
+.factory-app .fx-reset:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
 .factory-app .fx-main {
   flex: 1;
   width: 100%;
