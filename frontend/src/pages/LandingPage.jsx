@@ -61,8 +61,7 @@ export default function LandingPage() {
           </div>
           <nav className="landing-nav-links">
             <a href="#how">How it works</a>
-            <a href="#pilot">Pilot</a>
-            <a href="#testimonials">Partners</a>
+            <a href="#workflow">Workflow</a>
           </nav>
           <button className="landing-nav-signin" onClick={() => setModalOpen(true)}>
             Sign in
@@ -107,43 +106,27 @@ export default function LandingPage() {
 
           {/* Left copy */}
           <div className="landing-hero-copy">
-            {/* Brand lockup: full logo + tagline. */}
             <div className="landing-hero-lockup">
               <ReweaveLogo height={48} light />
-              <div className="landing-hero-lockup-text">
-                <div className="landing-hero-lockup-tagline">Circular Fabric</div>
-              </div>
             </div>
             <h1 className="landing-h1">
-              The exchange layer<br />
-              for industrial<br />
-              textile waste.
+              Turn textile offcuts into traceable supply.
             </h1>
             <p className="landing-hero-sub">
-              Reweave connects garment manufacturers to recyclers and makers
-              through computer vision sorting, AI pricing, and a B2B marketplace.
-              No middlemen. No landfill.
+              Reweave helps factories scan scrap fabric, create priced lots, and
+              route reusable material to recyclers and makers before it becomes waste.
             </p>
             <div className="landing-hero-actions">
               <button className="landing-hero-cta" onClick={() => setModalOpen(true)}>
                 Sign in to your portal →
               </button>
             </div>
-            <div className="landing-trust-row">
-              <span className="landing-trust-dot" />
-              <span>Live pilot with Carter's</span>
-              <span className="landing-trust-divider">·</span>
-              <span>2,400+ kg diverted</span>
-              <span className="landing-trust-divider">·</span>
-              <span>18 verified buyers</span>
-            </div>
           </div>
 
           {/* Right visual — marketplace preview */}
           <div className="landing-visual-frame">
             <div className="landing-visual-topbar">
-              <span className="landing-visual-title">Reweave marketplace</span>
-              <span className="landing-visual-badge">6 lots available</span>
+              <span className="landing-visual-title">Marketplace lot board</span>
             </div>
             <div className="landing-visual-grid">
               {SWATCHES.map((s, i) => (
@@ -167,10 +150,10 @@ export default function LandingPage() {
         <div className="landing-inner">
           <div className="landing-stats-grid">
             {[
-              { value: '2,400+', label: 'kg fabric diverted from landfill' },
-              { value: '18',     label: 'verified buyers on the platform' },
-              { value: '94%',    label: 'inventory sell-through rate' },
-              { value: '$12K+',  label: 'revenue generated for suppliers' },
+              { value: 'Capture',  label: 'Factory workers photograph and register fabric offcuts.' },
+              { value: 'Classify', label: 'Computer vision reads material, color, and approximate volume.' },
+              { value: 'Price',    label: 'Lots receive a starting price and decay rules for faster movement.' },
+              { value: 'Claim',    label: 'Buyers filter, reserve, and document the material they take.' },
             ].map((s, i) => (
               <div key={i} className="landing-stat">
                 <div className="landing-stat-value">{s.value}</div>
@@ -201,7 +184,7 @@ export default function LandingPage() {
                   </svg>
                 ),
                 title: 'CV Capture',
-                body: 'Factory workers photograph scraps on a sorting table. The vision pipeline identifies fabric type, color, composition, and weight in under 30 seconds — no manual data entry.',
+                body: 'Factory workers photograph scraps on a sorting table. The vision pipeline identifies fabric type, color, composition, and estimated weight with minimal manual entry.',
               },
               {
                 num: '02',
@@ -213,7 +196,7 @@ export default function LandingPage() {
                   </svg>
                 ),
                 title: 'AI Pricing & Listing',
-                body: 'Lots are automatically batched and priced with a time-decay model. Prices drop daily ensuring inventory turns within weeks, not months. Floor at 35% of base — always profitable.',
+                body: 'Lots are batched and priced with a time-decay model, so stale inventory becomes easier to move while suppliers keep a clear pricing floor.',
               },
               {
                 num: '03',
@@ -226,7 +209,7 @@ export default function LandingPage() {
                   </svg>
                 ),
                 title: 'Marketplace Claim',
-                body: 'Verified recyclers, makers, and resellers browse lots, filter by fabric and color, and claim in one click. Lots ship within 48 hours. Impact data generated automatically.',
+                body: 'Recyclers, makers, and resellers browse by fabric, color, weight, and price, then claim the material with a record of where it came from.',
               },
             ].map(s => (
               <div key={s.num} className="landing-step">
@@ -240,22 +223,22 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── Carter's pilot ── */}
-      <section className="landing-pilot" id="pilot">
+      {/* ── Workflow ── */}
+      <section className="landing-pilot" id="workflow">
         <div className="landing-inner">
-          <div className="landing-pilot-eyebrow">Running live — pilot program</div>
-          <h2 className="landing-pilot-h2">Carter's Atlanta Supplier Network</h2>
+          <div className="landing-pilot-eyebrow">Operational workflow</div>
+          <h2 className="landing-pilot-h2">One system for factories, operators, and buyers</h2>
           <p className="landing-pilot-body">
-            Atlanta's leading childrenswear manufacturer is piloting Reweave across their supplier network.
-            100% cotton twill offcuts from the kids' pants line are being sorted, priced, and sold to Looptex Recyclers
-            — without changing a single step on the factory floor.
+            Reweave keeps the handoff from a factory bin to a buyer-ready lot visible.
+            Each role gets the information it needs without adding extra spreadsheet work
+            to the factory floor.
           </p>
           <div className="landing-pilot-stats">
             {[
-              { value: '9.5 kg',  label: 'Fabric diverted' },
-              { value: '~20 kg',  label: 'CO₂ avoided' },
-              { value: '4 days',  label: 'Avg. time to claim' },
-              { value: '100%',    label: 'Cotton traceability' },
+              { value: 'Factory',  label: 'Capture scrap fabric without spreadsheet work.' },
+              { value: 'Admin',    label: 'Review lots, approve listings, and track movement.' },
+              { value: 'Buyer',    label: 'Find reusable material by specs and claim it quickly.' },
+              { value: 'Impact',   label: 'Keep source, weight, price, and diversion records together.' },
             ].map((s, i) => (
               <div key={i} className="landing-pilot-stat">
                 <div className="landing-pilot-stat-value">{s.value}</div>
@@ -264,48 +247,7 @@ export default function LandingPage() {
             ))}
           </div>
           <div className="landing-pilot-chain">
-            Carter's supplier offcuts &nbsp;&rarr;&nbsp; Reweave CV pipeline &nbsp;&rarr;&nbsp; Looptex Recyclers
-          </div>
-        </div>
-      </section>
-
-      {/* ── Testimonials ── */}
-      <section className="landing-section landing-section--alt" id="testimonials">
-        <div className="landing-inner">
-          <div className="landing-section-header">
-            <div className="landing-section-eyebrow">Early feedback</div>
-            <h2 className="landing-h2">What our pilot partners say</h2>
-          </div>
-          <div className="landing-testimonials">
-            {[
-              {
-                quote: 'Instead of paying disposal fees on offcuts, we now have a buyer lined up before the batch even ships. It changed how we think about waste entirely.',
-                name: 'Maria Chen',
-                role: 'Operations Lead',
-                company: 'Atlanta garment supplier',
-              },
-              {
-                quote: "We've been buying from brokers for years. Reweave gives us direct access to manufacturer offcuts at better prices and with full traceability on every lot.",
-                name: 'James Osei',
-                role: 'Procurement Director',
-                company: 'Looptex Recyclers',
-              },
-              {
-                quote: 'The environmental impact data is something our board actually wants to see. Real kilograms, real CO₂ numbers — not estimates. That makes the business case easy.',
-                name: 'Priya Nair',
-                role: 'VP Sustainability',
-                company: 'Regional manufacturer',
-              },
-            ].map((t, i) => (
-              <div key={i} className="landing-testimonial">
-                <div className="landing-testimonial-mark">"</div>
-                <div className="landing-testimonial-quote">{t.quote}</div>
-                <div className="landing-testimonial-author">
-                  <div className="landing-testimonial-name">{t.name}</div>
-                  <div className="landing-testimonial-meta">{t.role} · {t.company}</div>
-                </div>
-              </div>
-            ))}
+            Scan offcuts &nbsp;&rarr;&nbsp; classify material &nbsp;&rarr;&nbsp; publish lot &nbsp;&rarr;&nbsp; record claim
           </div>
         </div>
       </section>
@@ -313,22 +255,12 @@ export default function LandingPage() {
       {/* ── Footer ── */}
       <footer className="landing-footer">
         <div className="landing-inner">
-          <div className="landing-footer-top">
-            <div className="landing-footer-brand">
-              <ReweaveLogo height={27} light />
-              <span className="landing-footer-tagline">Circular Fabric</span>
-            </div>
-            <div className="landing-footer-sdgs">
-              <span className="landing-footer-sdg">SDG 12</span>
-              <span className="landing-footer-sdg">SDG 13</span>
-              <span className="landing-footer-sdg">SDG 6</span>
-            </div>
+          <div className="landing-footer-brand">
+            <ReweaveLogo height={27} light />
           </div>
-          <div className="landing-footer-meta">
-            HackATL 2026 · Track 05: Make &amp; Remake · Sponsored by Carter's · Atlanta, GA
-          </div>
-          <div className="landing-footer-sub">
-            Industrial Symbiosis &amp; Byproduct Exchange · Cox 'Play With Purpose' Hackathon
+          <div className="landing-footer-links">
+            <a href="#how">How it works</a>
+            <a href="#workflow">Workflow</a>
           </div>
         </div>
       </footer>
