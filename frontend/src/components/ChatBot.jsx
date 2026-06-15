@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { ReweaveLogo } from './ReweaveMark.jsx'
 
 const WELCOME = {
   role: 'assistant',
@@ -64,7 +65,9 @@ export default function ChatBot() {
         <div className="chat-panel">
           <div className="chat-header">
             <div className="chat-header-info">
-              <span className="chat-avatar" style={{ width: 22, height: 22, borderRadius: 4, background: 'var(--c-accent)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800, color: '#fff', flexShrink: 0 }}>AI</span>
+              <span className="chat-avatar" style={{ width: 24, height: 24, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <ReweaveLogo variant="mark" height={24} />
+              </span>
               <div>
                 <div className="chat-name">Reweave Assistant</div>
                 <div className="chat-status">Online</div>

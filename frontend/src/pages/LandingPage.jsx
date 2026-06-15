@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
-import { ReweaveBadge, ReweaveIcon, ReweaveWordmark } from '../components/ReweaveMark.jsx'
+import { ReweaveLogo } from '../components/ReweaveMark.jsx'
 
 const PORTAL_HOME = { factory: '/factory', admin: '/admin', buyer: '/buyer' }
 
@@ -57,8 +57,7 @@ export default function LandingPage() {
       <header className="landing-nav">
         <div className="landing-nav-inner">
           <div className="landing-brand">
-            <ReweaveBadge size={28} />
-            <ReweaveWordmark size={19} />
+            <ReweaveLogo height={30} />
           </div>
           <nav className="landing-nav-links">
             <a href="#how">How it works</a>
@@ -108,11 +107,10 @@ export default function LandingPage() {
 
           {/* Left copy */}
           <div className="landing-hero-copy">
-            {/* Brand lockup: icon + wordmark + tagline — matches the Reweave brand kit */}
+            {/* Brand lockup: full logo + tagline. */}
             <div className="landing-hero-lockup">
-              <ReweaveIcon size={48} />
+              <ReweaveLogo height={48} light />
               <div className="landing-hero-lockup-text">
-                <div className="landing-hero-lockup-wordmark">Reweave</div>
                 <div className="landing-hero-lockup-tagline">Circular Fabric</div>
               </div>
             </div>
@@ -317,8 +315,7 @@ export default function LandingPage() {
         <div className="landing-inner">
           <div className="landing-footer-top">
             <div className="landing-footer-brand">
-              <ReweaveBadge size={26} />
-              <ReweaveWordmark size={18} light />
+              <ReweaveLogo height={27} light />
               <span className="landing-footer-tagline">Circular Fabric</span>
             </div>
             <div className="landing-footer-sdgs">

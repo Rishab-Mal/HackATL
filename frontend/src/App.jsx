@@ -7,7 +7,7 @@ import ErrorBoundary from './components/ErrorBoundary.jsx'
 
 import Login from './pages/Login.jsx'
 import LandingPage from './pages/LandingPage.jsx'
-import { ReweaveBadge, ReweaveWordmark } from './components/ReweaveMark.jsx'
+import { ReweaveLogo } from './components/ReweaveMark.jsx'
 
 // Factory portal
 import Capture from './pages/Capture.jsx'
@@ -134,8 +134,7 @@ function PortalNav() {
   return (
     <header className="nav">
       <div className="brand">
-        <ReweaveBadge size={26} />
-        <ReweaveWordmark size={18} />
+        <ReweaveLogo height={28} light />
         <span className="portal-badge">{roleLabel[user.role]}</span>
       </div>
       <nav>

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { createLot, detectScrap, resetDemoData } from '../api.js'
 import { useAuth } from '../context/AuthContext.jsx'
+import { ReweaveLogo } from '../components/ReweaveMark.jsx'
 
 // Factory worker scanning flow. Person 1 (vision) owns the /api/vision/detect
 // response shape this screen renders -- see backend/app/schemas.py:
@@ -468,7 +469,7 @@ export function FactoryHeader() {
   return (
     <header className="fx-header">
       <Link className="fx-brand" to="/factory">
-        <span className="fx-wordmark">Reweave</span>
+        <ReweaveLogo height={28} light />
       </Link>
 
       <div className="fx-header-actions">

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
+import { ReweaveLogo } from '../components/ReweaveMark.jsx'
 
 const PORTAL_HOME = { factory: '/factory', admin: '/admin', buyer: '/buyer' }
 
@@ -40,8 +41,7 @@ export default function Login() {
     <div className="login-page">
       <div className="login-card">
         <div className="login-brand">
-          <div className="login-brand-icon">R</div>
-          Reweave
+          <ReweaveLogo height={32} />
         </div>
         <h1 className="login-title">Sign in</h1>
         <p className="login-sub">Enter your portal credentials to continue.</p>

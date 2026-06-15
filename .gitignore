@@ -19,3 +19,7 @@ frontend/dist/
 
 # Local runtime logs
 ngrok.log
+
+# Local visual inspection artifacts
+/.playwright-mcp/
+/reweave-*.png
