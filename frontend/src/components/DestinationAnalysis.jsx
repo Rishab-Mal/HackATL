@@ -36,16 +36,15 @@ export default function DestinationAnalysis({ group }) {
 
   if (loading) {
     return (
-      <div className="fx-destination fx-destination--status">
-        <span className="fx-destination-loader" aria-hidden="true" />
-        <span>Analyzing best destination</span>
+      <div className="mx-1 mb-2 rounded-md border border-[#2a3035] bg-[#131618] px-4 py-3 text-sm text-[#a7a29a]">
+        Analyzing best destination…
       </div>
     )
   }
 
   if (error) {
     return (
-      <div className="fx-destination fx-destination--error">
+      <div className="mx-1 mb-2 rounded-md border border-[#2a3035] bg-[#131618] px-4 py-3 text-sm text-[#d06b5d]">
         Could not load destination analysis: {error}
       </div>
     )
@@ -62,80 +61,90 @@ export default function DestinationAnalysis({ group }) {
     environmental_equivalents,
   } = data
 
-  const optionList = alternatives || []
-  const buyerList = recommended_buyers || []
-  const allOptions = [recommended, ...optionList]
+  const allOptions = [recommended, ...alternatives]
   const maxScore = Math.max(...allOptions.map((o) => o.score), 1)
   const isHighestImpact =
-    optionList.length > 0 &&
-    recommended.co2_saved_kg >= Math.max(...optionList.map((o) => o.co2_saved_kg))
-  const topBuyers = buyerList.slice(0, 2)
-  const topAlternatives = optionList.slice(0, 2)
+    alternatives.length > 0 &&
+    recommended.co2_saved_kg >= Math.max(...alternatives.map((o) => o.co2_saved_kg))
 
   return (
-    <div className="fx-destination">
-      <div className="fx-destination-head">
-        <div className="fx-destination-title">
-          <span>Best destination</span>
-          <h3>{recommended.name}</h3>
-        </div>
-        <span className="fx-destination-score">
-          {isHighestImpact ? 'Impact' : 'Top pick'} {recommended.score}
+    <div className="mx-1 mb-2 rounded-md border border-[#2a3035] bg-[#131618] p-4 text-[#f0eee8]">
+      <div className="mb-3">
+        <span className="text-[0.7rem] font-bold uppercase tracking-wider text-[#a7a29a]">
+          AI Destination Analysis
         </span>
+        <h3 className="mt-1 text-base font-bold">{recommended.name}</h3>
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
+          <span>
+            <strong>${recommended.revenue_usd.toFixed(2)}</strong> projected revenue
+          </span>
+          <span className="text-[#a7a29a]">·</span>
+          <span>
+            <strong>{recommended.co2_saved_kg} kg</strong> CO2 saved
+          </span>
+          <span className="rounded-full bg-[rgba(127,160,111,0.16)] px-2 py-0.5 text-xs font-bold text-[#7fa06f]">
+            {isHighestImpact ? 'Highest Impact · ' : 'Top pick · '}
+            {recommended.score}/100
+          </span>
+        </div>
       </div>
 
-      <div className="fx-destination-metrics" aria-label="Destination metrics">
-        <div>
-          <span>Revenue</span>
-          <strong>${recommended.revenue_usd.toFixed(2)}</strong>
-        </div>
-        <div>
-          <span>CO2 saved</span>
-          <strong>{recommended.co2_saved_kg} kg</strong>
-        </div>
-        <div>
-          <span>Sale window</span>
-          <strong>{expected_days_to_sale}d</strong>
-        </div>
-      </div>
-
-      <div className="fx-destination-foot">
-        <div className="fx-destination-pill">
-          {sale_probability_pct}% sale probability
-        </div>
-        {topBuyers.length > 0 && (
-          <div className="fx-destination-buyers">
-            {topBuyers.map((buyer) => (
-              <span key={buyer.name}>{buyer.name}</span>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {topAlternatives.length > 0 && (
-        <div className="fx-destination-options">
-          {topAlternatives.map((opt) => (
-            <div className="fx-destination-option" key={opt.name}>
-              <div className="fx-destination-option-copy">
-                <span>{opt.name}</span>
-                <strong>{opt.score}/100</strong>
+      <div className="mb-3">
+        <h4 className="mb-2 text-xs font-bold uppercase tracking-wider text-[#a7a29a]">
+          Alternative destinations
+        </h4>
+        <div className="flex flex-col gap-2">
+          {allOptions.map((opt) => (
+            <div key={opt.name} className="text-xs">
+              <div className="mb-1 flex items-center justify-between gap-2">
+                <span className="font-semibold">{opt.name}</span>
+                <span className="text-[#a7a29a]">
+                  ${opt.revenue_usd.toFixed(2)} · {opt.co2_saved_kg} kg CO2 · {opt.score}/100
+                </span>
               </div>
-              <div className="fx-destination-bar">
+              <div className="h-1.5 w-full rounded-full bg-[#2a3035]">
                 <div
-                  className="fx-destination-bar-fill"
+                  className="h-1.5 rounded-full bg-[#7fa06f]"
                   style={{ width: `${(opt.score / maxScore) * 100}%` }}
                 />
               </div>
             </div>
           ))}
         </div>
+      </div>
+
+      {recommended_buyers.length > 0 && (
+        <div className="mb-3">
+          <h4 className="mb-2 text-xs font-bold uppercase tracking-wider text-[#a7a29a]">
+            Recommended buyers
+          </h4>
+          <ul className="flex flex-col gap-1 text-sm">
+            {recommended_buyers.map((b) => (
+              <li key={b.name} className="flex items-center justify-between">
+                <span>{b.name}</span>
+                <span className="text-[#a7a29a]">{b.match_pct}% match</span>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
 
-      {environmental_equivalents && (
-        <p className="fx-destination-note">
-          Equivalent to {environmental_equivalents.car_miles} miles not driven.
-        </p>
-      )}
+      <div className="mb-3 flex flex-wrap gap-4 text-sm">
+        <span>
+          Sale probability: <strong>{sale_probability_pct}%</strong>
+        </span>
+        <span>
+          Expected time to sale: <strong>{expected_days_to_sale} days</strong>
+        </span>
+      </div>
+
+      <div className="text-xs text-[#a7a29a]">
+        Equivalent to <strong className="text-[#f0eee8]">{environmental_equivalents.car_miles}</strong>{' '}
+        miles not driven, <strong className="text-[#f0eee8]">{environmental_equivalents.showers}</strong>{' '}
+        showers saved, and{' '}
+        <strong className="text-[#f0eee8]">{environmental_equivalents.phone_charges}</strong> phone
+        charges avoided.
+      </div>
     </div>
   )
 }
