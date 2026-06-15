@@ -468,7 +468,7 @@ export function FactoryHeader() {
   return (
     <header className="fx-header">
       <Link className="fx-brand" to="/factory">
-        <span className="fx-wordmark">Scrap Sorter</span>
+        <span className="fx-wordmark">Reweave</span>
       </Link>
 
       <div className="fx-header-actions">

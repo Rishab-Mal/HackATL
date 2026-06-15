@@ -11,7 +11,7 @@ from .routers import lots, marketplace, vision
 from .routers import chat, auth, admin
 from .seed import seed_data
 
-app = FastAPI(title="Scrap Sorter API")
+app = FastAPI(title="Reweave API")
 
 app.add_middleware(
     CORSMiddleware,

@@ -26,7 +26,7 @@ export default function AdminDashboard() {
   const [error, setError] = useState(null)
 
   useEffect(() => {
-    const token = localStorage.getItem('scrap_token')
+    const token = localStorage.getItem('reweave_token')
     fetch('/api/admin/metrics', {
       headers: { Authorization: `Bearer ${token}` },
     })
@@ -75,7 +75,7 @@ export default function AdminDashboard() {
       <div className="dash-header">
         <div>
           <h1 className="dash-title">Operations Dashboard</h1>
-          <p className="dash-subtitle">Scrap Sorter · Carter's Make &amp; Remake Pilot</p>
+          <p className="dash-subtitle">Reweave · Carter's Make &amp; Remake Pilot</p>
         </div>
         <Badge color="green" size="sm">Live</Badge>
       </div>
@@ -126,7 +126,7 @@ export default function AdminDashboard() {
           </div>
         </div>
         <div className="carters-card-footer">
-          Offcuts from Carter's Atlanta supplier → sorted by Scrap Sorter → claimed by recyclers
+          Offcuts from Carter's Atlanta supplier → sorted by Reweave → claimed by recyclers
         </div>
       </div>
 

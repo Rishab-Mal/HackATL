@@ -16,7 +16,7 @@ from ..database import get_db
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
-SECRET_KEY = os.getenv("SECRET_KEY", "scrap-sorter-dev-secret-do-not-use-in-prod")
+SECRET_KEY = os.getenv("SECRET_KEY", "reweave-dev-secret-do-not-use-in-prod")
 ALGORITHM = "HS256"
 EXPIRE_HOURS = 8
 

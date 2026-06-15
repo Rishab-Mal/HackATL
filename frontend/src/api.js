@@ -5,7 +5,7 @@
 const BASE = '/api'
 
 async function request(path, options = {}) {
-  const token = localStorage.getItem('scrap_token')
+  const token = localStorage.getItem('reweave_token')
   const headers = { ...(options.headers || {}) }
   if (token) headers['Authorization'] = `Bearer ${token}`
   const res = await fetch(`${BASE}${path}`, { ...options, headers })

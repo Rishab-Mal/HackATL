@@ -67,7 +67,7 @@ def aruco_marker(
     return Response(
         content=encoded.tobytes(),
         media_type="image/png",
-        headers={"Content-Disposition": f'inline; filename="scrap-sorter-aruco-{marker_id}.png"'},
+        headers={"Content-Disposition": f'inline; filename="reweave-aruco-{marker_id}.png"'},
     )
 
 
@@ -77,7 +77,7 @@ _LAB_HTML = """
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Scrap Sorter Vision Lab</title>
+  <title>Reweave Vision Lab</title>
   <style>
     :root { color-scheme: light; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
     * { box-sizing: border-box; }
@@ -135,7 +135,7 @@ _LAB_HTML = """
 </head>
 <body>
   <header>
-    <h1>Scrap Sorter Vision Lab</h1>
+    <h1>Reweave Vision Lab</h1>
     <p>Upload one table photo. The pipeline segments fabric, filters reference objects, estimates scale, asks a vision LLM for broad material type, and returns sort bins.</p>
   </header>
   <main>

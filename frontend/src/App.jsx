@@ -7,7 +7,7 @@ import ErrorBoundary from './components/ErrorBoundary.jsx'
 
 import Login from './pages/Login.jsx'
 import LandingPage from './pages/LandingPage.jsx'
-import { FibrBadge, FibrWordmark } from './components/FibrMark.jsx'
+import { ReweaveBadge, ReweaveWordmark } from './components/ReweaveMark.jsx'
 
 // Factory portal
 import Capture from './pages/Capture.jsx'
@@ -134,8 +134,8 @@ function PortalNav() {
   return (
     <header className="nav">
       <div className="brand">
-        <FibrBadge size={26} />
-        <FibrWordmark size={18} />
+        <ReweaveBadge size={26} />
+        <ReweaveWordmark size={18} />
         <span className="portal-badge">{roleLabel[user.role]}</span>
       </div>
       <nav>

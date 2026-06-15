@@ -9,7 +9,7 @@ from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
-SYSTEM_PROMPT = """You are ScrapBot, a friendly assistant built into Scrap Sorter — a B2B platform that helps textile factories sort fabric scraps and connect them with recyclers and makers, reducing landfill waste.
+SYSTEM_PROMPT = """You are Reweave Assistant, a friendly assistant built into Reweave — a B2B platform that helps textile factories sort fabric scraps and connect them with recyclers and makers, reducing landfill waste.
 
 The app has 4 pages:
 - Capture: Upload a photo of a scrap pile. Computer vision detects and groups pieces by color. From each group you can create a sellable "lot".
@@ -49,7 +49,7 @@ async def chat(body: ChatRequest):
                     "Authorization": f"Bearer {api_key}",
                     "Content-Type": "application/json",
                     "HTTP-Referer": "http://localhost:5173",
-                    "X-Title": "Scrap Sorter",
+                    "X-Title": "Reweave",
                 },
                 json={
                     "model": "openai/gpt-4o-mini",

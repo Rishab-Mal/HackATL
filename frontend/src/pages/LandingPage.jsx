@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
-import { FibrBadge, FibrIcon, FibrWordmark } from '../components/FibrMark.jsx'
+import { ReweaveBadge, ReweaveIcon, ReweaveWordmark } from '../components/ReweaveMark.jsx'
 
 const PORTAL_HOME = { factory: '/factory', admin: '/admin', buyer: '/buyer' }
 
@@ -57,8 +57,8 @@ export default function LandingPage() {
       <header className="landing-nav">
         <div className="landing-nav-inner">
           <div className="landing-brand">
-            <FibrBadge size={28} />
-            <FibrWordmark size={19} />
+            <ReweaveBadge size={28} />
+            <ReweaveWordmark size={19} />
           </div>
           <nav className="landing-nav-links">
             <a href="#how">How it works</a>
@@ -108,11 +108,11 @@ export default function LandingPage() {
 
           {/* Left copy */}
           <div className="landing-hero-copy">
-            {/* Brand lockup: icon + wordmark + tagline — matches the fibr brand kit */}
+            {/* Brand lockup: icon + wordmark + tagline — matches the Reweave brand kit */}
             <div className="landing-hero-lockup">
-              <FibrIcon size={48} />
+              <ReweaveIcon size={48} />
               <div className="landing-hero-lockup-text">
-                <div className="landing-hero-lockup-wordmark">fibr</div>
+                <div className="landing-hero-lockup-wordmark">Reweave</div>
                 <div className="landing-hero-lockup-tagline">Circular Fabric</div>
               </div>
             </div>
@@ -122,7 +122,7 @@ export default function LandingPage() {
               textile waste.
             </h1>
             <p className="landing-hero-sub">
-              fibr connects garment manufacturers to recyclers and makers
+              Reweave connects garment manufacturers to recyclers and makers
               through computer vision sorting, AI pricing, and a B2B marketplace.
               No middlemen. No landfill.
             </p>
@@ -144,7 +144,7 @@ export default function LandingPage() {
           {/* Right visual — marketplace preview */}
           <div className="landing-visual-frame">
             <div className="landing-visual-topbar">
-              <span className="landing-visual-title">fibr marketplace</span>
+              <span className="landing-visual-title">Reweave marketplace</span>
               <span className="landing-visual-badge">6 lots available</span>
             </div>
             <div className="landing-visual-grid">
@@ -248,7 +248,7 @@ export default function LandingPage() {
           <div className="landing-pilot-eyebrow">Running live — pilot program</div>
           <h2 className="landing-pilot-h2">Carter's Atlanta Supplier Network</h2>
           <p className="landing-pilot-body">
-            Atlanta's leading childrenswear manufacturer is piloting fibr across their supplier network.
+            Atlanta's leading childrenswear manufacturer is piloting Reweave across their supplier network.
             100% cotton twill offcuts from the kids' pants line are being sorted, priced, and sold to Looptex Recyclers
             — without changing a single step on the factory floor.
           </p>
@@ -266,7 +266,7 @@ export default function LandingPage() {
             ))}
           </div>
           <div className="landing-pilot-chain">
-            Carter's supplier offcuts &nbsp;&rarr;&nbsp; fibr CV pipeline &nbsp;&rarr;&nbsp; Looptex Recyclers
+            Carter's supplier offcuts &nbsp;&rarr;&nbsp; Reweave CV pipeline &nbsp;&rarr;&nbsp; Looptex Recyclers
           </div>
         </div>
       </section>
@@ -287,7 +287,7 @@ export default function LandingPage() {
                 company: 'Atlanta garment supplier',
               },
               {
-                quote: "We've been buying from brokers for years. fibr gives us direct access to manufacturer offcuts at better prices and with full traceability on every lot.",
+                quote: "We've been buying from brokers for years. Reweave gives us direct access to manufacturer offcuts at better prices and with full traceability on every lot.",
                 name: 'James Osei',
                 role: 'Procurement Director',
                 company: 'Looptex Recyclers',
@@ -317,8 +317,8 @@ export default function LandingPage() {
         <div className="landing-inner">
           <div className="landing-footer-top">
             <div className="landing-footer-brand">
-              <FibrBadge size={26} />
-              <FibrWordmark size={18} light />
+              <ReweaveBadge size={26} />
+              <ReweaveWordmark size={18} light />
               <span className="landing-footer-tagline">Circular Fabric</span>
             </div>
             <div className="landing-footer-sdgs">

@@ -16,7 +16,7 @@ export default function Dashboard() {
   const [error, setError] = useState(null)
 
   useEffect(() => {
-    const token = localStorage.getItem('scrap_token')
+    const token = localStorage.getItem('reweave_token')
     fetch('/api/admin/metrics', { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
       .then(setM)
@@ -54,7 +54,7 @@ export default function Dashboard() {
       <div className="dash-header">
         <div>
           <h1 className="dash-title">Environmental Impact</h1>
-          <p className="dash-subtitle">Scrap Sorter · Carter's Make &amp; Remake Pilot · Atlanta, GA</p>
+          <p className="dash-subtitle">Reweave · Carter's Make &amp; Remake Pilot · Atlanta, GA</p>
         </div>
         <div className="sdg-badges">
           <div className="sdg-badge sdg-12">SDG 12<br /><span>Responsible Consumption</span></div>
@@ -70,7 +70,7 @@ export default function Dashboard() {
             <Text className="text-green-700 font-semibold uppercase text-xs tracking-widest mb-1">Our Mission</Text>
             <Text>
               Every kilogram of fabric diverted from landfill prevents raw-material extraction,
-              toxic dye processing, and methane emissions from decomposition. Scrap Sorter turns
+              toxic dye processing, and methane emissions from decomposition. Reweave turns
               factory waste into a circular supply chain.
             </Text>
           </div>
@@ -177,7 +177,7 @@ export default function Dashboard() {
           </div>
         </div>
         <div className="carters-card-footer">
-          Carter's Atlanta supplier offcuts → sorted by Scrap Sorter CV pipeline → claimed by Looptex Recyclers
+          Carter's Atlanta supplier offcuts → sorted by Reweave CV pipeline → claimed by Looptex Recyclers
         </div>
       </div>
 

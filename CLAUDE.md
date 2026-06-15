@@ -1,11 +1,11 @@
-# Scrap Sorter — HackATL 2026
+# Reweave — HackATL 2026
 
 **Track 05: Make & Remake** (sponsored by Carter's)
 Cox 'Play With Purpose' Hackathon · Atlanta, GA · June 14–17, 2026
 
 Problem statement we're solving: **Industrial Symbiosis & Byproduct Exchange** — build a platform that turns textile factory fabric scraps (industrial byproducts) into raw material inputs for buyers, eliminating waste before it's created.
 
-Carter's is the anchor pilot: their fabric offcuts flow through Scrap Sorter → sorted by CV → listed on marketplace → claimed by recyclers/makers.
+Carter's is the anchor pilot: their fabric offcuts flow through Reweave → sorted by CV → listed on marketplace → claimed by recyclers/makers.
 
 ---
 
@@ -28,7 +28,7 @@ Carter's is the anchor pilot: their fabric offcuts flow through Scrap Sorter →
 - **Admin portal** — Dashboard with P&L, lot performance, environmental impact, top buyers, fabric breakdown
 - **Buyer portal** — Marketplace with filters, quantity slider, cart, order placement
 - **AI pricing** — Exponential decay model: `base * max(0.35, e^(-0.015 * max(0, days-7)))`, floor at 35%
-- **ScrapBot** — AI chatbot (OpenRouter gpt-4o-mini) with full system context
+- **Reweave Assistant** — AI chatbot (OpenRouter gpt-4o-mini) with full system context
 - **Carter's spotlight** — Supplier pilot callout on the marketplace
 
 ## Demo credentials

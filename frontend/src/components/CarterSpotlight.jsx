@@ -10,7 +10,7 @@ export default function CarterSpotlight() {
         <span className="spotlight-tag">Deal closed</span>
       </div>
 
-      <h2 className="spotlight-title">Carter's Supplier × Scrap Sorter</h2>
+      <h2 className="spotlight-title">Carter's Supplier × Reweave</h2>
       <p className="spotlight-sub">
         How one Atlanta garment supplier turned production offcuts into a circular
         supply chain — without changing a single thing on the factory floor.
@@ -26,7 +26,7 @@ export default function CarterSpotlight() {
         <div className="flow-arrow">→</div>
 
         <div className="flow-node flow-node--accent">
-          <div className="flow-node-label">Scrap Sorter</div>
+          <div className="flow-node-label">Reweave</div>
           <div className="flow-node-detail">Photo upload → AI detection<br />Sorted into navy lot in &lt;30 s</div>
         </div>
 

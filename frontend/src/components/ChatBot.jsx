@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 
 const WELCOME = {
   role: 'assistant',
-  content: "Hi! I'm ScrapBot 👋 I can help you navigate Scrap Sorter, explain how to create lots, find the right buyers, or answer questions about fabric recycling. What can I help you with?",
+  content: "Hi! I'm Reweave Assistant 👋 I can help you navigate Reweave, explain how to create lots, find the right buyers, or answer questions about fabric recycling. What can I help you with?",
 }
 
 export default function ChatBot() {
@@ -66,7 +66,7 @@ export default function ChatBot() {
             <div className="chat-header-info">
               <span className="chat-avatar" style={{ width: 22, height: 22, borderRadius: 4, background: 'var(--c-accent)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800, color: '#fff', flexShrink: 0 }}>AI</span>
               <div>
-                <div className="chat-name">ScrapBot</div>
+                <div className="chat-name">Reweave Assistant</div>
                 <div className="chat-status">Online</div>
               </div>
             </div>
