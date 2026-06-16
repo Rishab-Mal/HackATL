@@ -31,6 +31,10 @@ class Settings:
         self.replicate_sam_model = os.getenv(
             "REPLICATE_SAM_MODEL", "lucataco/segment-anything-2"
         ).strip()
+        # When set (e.g. "navadeepbudda/reweave-sam"), SAM calls route to a
+        # dedicated always-warm deployment instead of the public model, which
+        # removes the cold-start delay before a scan.
+        self.replicate_deployment = os.getenv("REPLICATE_DEPLOYMENT", "").strip()
         models = os.getenv(
             "OPENROUTER_VISION_MODELS",
             # Fast model first; the others stay as quality fallbacks if it fails.

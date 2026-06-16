@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Column, DateTime, Float, Integer, String, Text
+from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, JSON, String, Text
 
 from .database import Base
 
@@ -21,16 +21,40 @@ class Lot(Base):
     composition = Column(String, nullable=False)
     color_name = Column(String, nullable=False)
     color_hex = Column(String, nullable=False)
+    lot_key = Column(String, nullable=True, index=True)
+    scan_run_id = Column(Integer, ForeignKey("scan_runs.id", ondelete="SET NULL"), nullable=True, index=True)
+    piece_images = Column(JSON, default=list)
     piece_count = Column(Integer, default=0)
     weight_kg = Column(Float, default=0.0)
     # Computed at listing time
     price_usd = Column(Float, default=0.0)
     carbon_saved_kg = Column(Float, default=0.0)
     water_saved_l = Column(Float, default=0.0)
+    # Origin — where the factory worker shared their location during the scan
+    origin_lat = Column(Float, nullable=True)
+    origin_lng = Column(Float, nullable=True)
     # Marketplace lifecycle
     status = Column(String, default="available")  # available | claimed | unlisted
     claimed_by = Column(String, nullable=True)
     claimed_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class ScanRun(Base):
+    """One camera/table scan that produced one or more marketplace lots."""
+
+    __tablename__ = "scan_runs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    annotated_image_data_url = Column(Text, nullable=True)
+    image_width = Column(Integer, default=0)
+    image_height = Column(Integer, default=0)
+    piece_count = Column(Integer, default=0)
+    group_count = Column(Integer, default=0)
+    total_weight_kg = Column(Float, default=0.0)
+    total_carbon_saved_kg = Column(Float, default=0.0)
+    total_water_saved_l = Column(Float, default=0.0)
+    summary = Column(JSON, default=dict)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
@@ -44,6 +68,9 @@ class User(Base):
     password_hash = Column(String, nullable=False)
     role = Column(String, nullable=False)  # factory | admin | buyer
     name = Column(String, default="")
+    # Buyer's saved location, used to anchor the marketplace map and shipping math
+    lat = Column(Float, nullable=True)
+    lng = Column(Float, nullable=True)
 
 
 class Buyer(Base):

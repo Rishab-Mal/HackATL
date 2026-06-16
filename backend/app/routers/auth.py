@@ -52,6 +52,13 @@ class UserOut(BaseModel):
     email: str
     role: str
     name: str
+    lat: float | None = None
+    lng: float | None = None
+
+
+class LocationUpdate(BaseModel):
+    lat: float
+    lng: float
 
 
 # ---------------------------------------------------------------------------
@@ -107,4 +114,26 @@ def me(current_user: models.User = Depends(get_current_user)):
         email=current_user.email,
         role=current_user.role,
         name=current_user.name,
+        lat=current_user.lat,
+        lng=current_user.lng,
+    )
+
+
+@router.put("/me/location", response_model=UserOut)
+def update_location(
+    body: LocationUpdate,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    current_user.lat = body.lat
+    current_user.lng = body.lng
+    db.commit()
+    db.refresh(current_user)
+    return UserOut(
+        id=current_user.id,
+        email=current_user.email,
+        role=current_user.role,
+        name=current_user.name,
+        lat=current_user.lat,
+        lng=current_user.lng,
     )

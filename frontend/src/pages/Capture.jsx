@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { createLot, detectScrap, resetDemoData } from '../api.js'
+import { createLot, createScanRun, detectScrap, resetDemoData, saveMyLocation } from '../api.js'
 import { useAuth } from '../context/AuthContext.jsx'
 import { ReweaveLogo } from '../components/ReweaveMark.jsx'
 import DestinationAnalysis from '../components/DestinationAnalysis.jsx'
@@ -17,6 +17,11 @@ const STATUS_LINES = [
   'Estimating pieces',
   'Preparing pack list',
 ]
+const VISION_SERVER_PREF_KEY = 'reweave_use_continuous_vision_server'
+
+function savedContinuousServerPref() {
+  return localStorage.getItem(VISION_SERVER_PREF_KEY) === 'true'
+}
 
 export default function Capture() {
   const [stage, setStage] = useState('start') // start | capture | processing | plan | listed | error
@@ -28,10 +33,31 @@ export default function Capture() {
   const [finishedBatch, setFinishedBatch] = useState(null)
   const [statusIdx, setStatusIdx] = useState(0)
   const [zoomOpen, setZoomOpen] = useState(false)
+  const [useContinuousServer, setUseContinuousServer] = useState(savedContinuousServerPref)
 
   const autoSavedRef = useRef(false)
   const canvasRef = useRef(null)
   const imgRef = useRef(null)
+  // Where this factory station is. Captured once from the browser so every lot
+  // scanned here is pinned to the worker's real location on the buyer map.
+  const originRef = useRef(null)
+
+  useEffect(() => {
+    if (!navigator.geolocation) return
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        const { latitude, longitude } = pos.coords
+        originRef.current = { origin_lat: latitude, origin_lng: longitude }
+        saveMyLocation(latitude, longitude).catch(() => {})
+      },
+      () => {},
+      { timeout: 8000 }
+    )
+  }, [])
+
+  useEffect(() => {
+    localStorage.setItem(VISION_SERVER_PREF_KEY, useContinuousServer ? 'true' : 'false')
+  }, [useContinuousServer])
 
   // Cycle the status readout while we wait on the detect call.
   useEffect(() => {
@@ -57,7 +83,7 @@ export default function Capture() {
     setPreviewUrl(URL.createObjectURL(selected))
     setStage('processing')
 
-    detectScrap(selected)
+    detectScrap(selected, { useDeployment: useContinuousServer })
       .then((res) => {
         setResult(res)
         autoSaveLots(res)
@@ -77,10 +103,16 @@ export default function Capture() {
     autoSavedRef.current = true
     const groups = (res && res.groups) || []
     if (groups.length === 0) return
-    Promise.allSettled(groups.map((g) => createLot(buildLotPayload(g)))).then((results) => {
-      const failed = results.filter((r) => r.status === 'rejected')
-      if (failed.length) console.warn('Some lots could not be listed:', failed)
+    const origin = originRef.current || {}
+    createScanRun(buildScanRunPayload(res))
+      .then((scanRun) => Promise.allSettled(
+        groups.map((g) => createLot({ ...buildLotPayload(g, res), ...origin, scan_run_id: scanRun.id }))
+      ))
+      .then((results) => {
+        const failed = results.filter((r) => r.status === 'rejected')
+        if (failed.length) console.warn('Some lots could not be listed:', failed)
       })
+      .catch((err) => console.warn('Scan run could not be saved:', err))
   }
 
   function finishBatch() {
@@ -242,7 +274,6 @@ export default function Capture() {
         <div className="fx-frame fx-frame--scan">
           {previewUrl && <img src={previewUrl} alt="Your scrap pile" />}
           <div className="fx-readout">
-            <span className="fx-readout-dot" />
             <span className="fx-readout-text">{STATUS_LINES[statusIdx]}</span>
           </div>
         </div>
@@ -250,7 +281,6 @@ export default function Capture() {
         <div className="fx-bar-indeterminate">
           <span />
         </div>
-        <p className="fx-mono-note">Usually done in a few seconds</p>
       </section>
     )
   } else if (stage === 'error') {
@@ -452,7 +482,10 @@ export default function Capture() {
 
   return (
     <div className="factory-app">
-      <FactoryHeader />
+      <FactoryHeader
+        useContinuousServer={useContinuousServer}
+        onUseContinuousServerChange={setUseContinuousServer}
+      />
       <main className={`fx-main ${stage === 'start' ? 'fx-main--dashboard' : ''}`}>{body}</main>
 
       {zoomOpen && annotated && (
@@ -471,9 +504,30 @@ export default function Capture() {
 // Bespoke header (replaces the shared site nav on this page)
 // --------------------------------------------------------------------------
 
-export function FactoryHeader() {
+function VisionServerToggle({ enabled, onChange }) {
+  return (
+    <label className="fx-server-toggle">
+      <input
+        type="checkbox"
+        checked={enabled}
+        onChange={(event) => onChange(event.target.checked)}
+      />
+      <span className="fx-server-switch" aria-hidden="true">
+        <span />
+      </span>
+      <span className="fx-server-copy">
+        <strong>Continuous vision server</strong>
+        <span>{enabled ? 'On: try fast server first' : 'Off: skip server wait'}</span>
+      </span>
+    </label>
+  )
+}
+
+export function FactoryHeader({ useContinuousServer = null, onUseContinuousServerChange = null }) {
   const { logout } = useAuth()
   const [resetting, setResetting] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const showVisionToggle = typeof useContinuousServer === 'boolean' && onUseContinuousServerChange
 
   async function handleReset() {
     if (resetting) return
@@ -495,6 +549,9 @@ export function FactoryHeader() {
       </Link>
 
       <div className="fx-header-actions">
+        {showVisionToggle && (
+          <VisionServerHeaderToggle enabled={useContinuousServer} onChange={onUseContinuousServerChange} />
+        )}
         <button type="button" className="fx-reset" onClick={handleReset} disabled={resetting}>
           {resetting ? 'Resetting…' : 'Reset demo'}
         </button>
@@ -502,7 +559,48 @@ export function FactoryHeader() {
           Sign out
         </button>
       </div>
+
+      <button
+        type="button"
+        className="fx-menu-button"
+        onClick={() => setMenuOpen((open) => !open)}
+        aria-expanded={menuOpen}
+        aria-label="Open factory menu"
+      >
+        <span />
+        <span />
+        <span />
+      </button>
+
+      {menuOpen && (
+        <div className="fx-mobile-menu">
+          {showVisionToggle && (
+            <VisionServerToggle enabled={useContinuousServer} onChange={onUseContinuousServerChange} />
+          )}
+          <button type="button" className="fx-mobile-menu-item" onClick={handleReset} disabled={resetting}>
+            {resetting ? 'Resetting…' : 'Reset demo'}
+          </button>
+          <button type="button" className="fx-mobile-menu-item" onClick={logout}>
+            Sign out
+          </button>
+        </div>
+      )}
     </header>
+  )
+}
+
+function VisionServerHeaderToggle({ enabled, onChange }) {
+  return (
+    <button
+      type="button"
+      className={`fx-server-pill ${enabled ? 'is-on' : ''}`}
+      onClick={() => onChange(!enabled)}
+      aria-pressed={enabled}
+      title={enabled ? 'Continuous vision server on' : 'Continuous vision server off'}
+    >
+      <span>Vision server</span>
+      <strong>{enabled ? 'On' : 'Off'}</strong>
+    </button>
   )
 }
 
@@ -636,18 +734,118 @@ function buildListingSummary(res) {
   }
 }
 
-function buildLotPayload(group) {
+function buildLotPayload(group, res) {
+  const weightG = Number(group.estimated_weight_g) || 0
+  const weightLabel = group.total_weight_label || (weightG ? formatWeight(weightG) : 'weight pending')
+  const groupedPieces = piecesForGroup(group, res)
+  const images = extractPieceImages(groupedPieces)
+  const fallbackImages = images.length ? [] : extractPieceImages(Array.isArray(res?.pieces) ? res.pieces : [])
+  const pieceImages = images.length ? images : fallbackImages
+  const pieces = groupedPieces.length ? groupedPieces : (Array.isArray(res?.pieces) ? res.pieces : [])
+  const count = Number(group.piece_count) || pieces.length || 0
+  const fabric = group.fabric_type_guess || 'Unspecified'
+  const composition = group.composition_guess || 'Unspecified'
+
+  if (pieceImages.length === 0) {
+    console.warn('No crop thumbnails were found for group', group.sort_group_id || group.color_name)
+  }
+
   return {
-    name: `${capitalize(group.color_name)} ${group.fabric_type_guess || 'Scraps'}`.trim(),
-    description: group.sort_instruction || '',
-    fabric_type: group.fabric_type_guess || 'Unspecified',
-    composition: group.composition_guess || 'Unspecified',
+    name: `${capitalize(group.color_name)} ${fabric}`.trim(),
+    description: [
+      `${count} ${count === 1 ? 'piece' : 'pieces'} of ${group.color_name} ${fabric}`,
+      `${weightLabel} estimated total`,
+      composition !== 'Unspecified' ? composition : '',
+      group.sort_instruction || '',
+    ].filter(Boolean).join('. '),
+    fabric_type: fabric,
+    composition,
     color_name: group.color_name,
     color_hex: group.color_hex,
-    piece_count: group.piece_count,
-    weight_kg: group.estimated_weight_g ? Number((group.estimated_weight_g / 1000).toFixed(3)) : 0,
+    lot_key: makeLotKey(fabric, composition, group.color_name),
+    piece_images: pieceImages.slice(0, 12),
+    piece_count: count,
+    weight_kg: weightG ? Number((weightG / 1000).toFixed(3)) : 0,
     price_usd: 0, // let the backend auto-price (see routers/lots.py:create_lot)
   }
+}
+
+function buildScanRunPayload(res) {
+  const groups = Array.isArray(res?.groups) ? res.groups : []
+  const pieces = Array.isArray(res?.pieces) ? res.pieces : []
+  const weightKg = groups.reduce((sum, group) => sum + ((Number(group.estimated_weight_g) || 0) / 1000), 0)
+  const carbonKg = weightKg * 2.1
+  const waterL = weightKg * 2700
+
+  return {
+    annotated_image_data_url: res?.annotated_image_data_url || null,
+    image_width: Number(res?.image_width) || 0,
+    image_height: Number(res?.image_height) || 0,
+    piece_count: pieces.length,
+    group_count: groups.length,
+    total_weight_kg: Number(weightKg.toFixed(4)),
+    total_carbon_saved_kg: Number(carbonKg.toFixed(4)),
+    total_water_saved_l: Number(waterL.toFixed(2)),
+    summary: {
+      scale_method: res?.scale_method || null,
+      scale_confidence: res?.scale_confidence || null,
+      segmentation_method: res?.segmentation_method || null,
+      llm_model: res?.llm_model || null,
+      warnings: Array.isArray(res?.warnings) ? res.warnings.slice(0, 4) : [],
+      groups: groups.map((group, i) => ({
+        key: group.sort_group_id || `${group.color_name}-${i}`,
+        sort_group_id: group.sort_group_id || String.fromCharCode(65 + i),
+        color_name: group.color_name,
+        color_hex: group.color_hex,
+        fabric_type: group.fabric_type_guess || 'Unspecified',
+        composition: group.composition_guess || 'Unspecified',
+        piece_count: Number(group.piece_count) || 0,
+        weight_g: Number(group.estimated_weight_g) || 0,
+      })),
+    },
+  }
+}
+
+function extractPieceImages(pieces) {
+  return (Array.isArray(pieces) ? pieces : [])
+    .filter((piece) => piece.crop_data_url)
+    .slice(0, 12)
+    .map((piece) => ({
+      src: piece.crop_data_url,
+      piece_id: piece.id,
+      color_name: piece.color_name,
+      weight_label: piece.weight_label,
+      size_label: piece.size_label,
+    }))
+}
+
+function piecesForGroup(group, res) {
+  const pieces = Array.isArray(res?.pieces) ? res.pieces : []
+  const pieceIds = new Set((group?.piece_ids || []).map((id) => Number(id)))
+  const sortGroupId = group?.sort_group_id
+  const colorName = String(group?.color_name || '').toLowerCase()
+  const fabricGuess = String(group?.fabric_type_guess || '').toLowerCase()
+
+  const byIds = pieces.filter((piece) => pieceIds.has(Number(piece.id)))
+  if (byIds.length) return byIds
+
+  const bySortGroup = pieces.filter((piece) => String(piece.sort_group_id || '') === String(sortGroupId || ''))
+  if (bySortGroup.length) return bySortGroup
+
+  const byColorAndFabric = pieces.filter((piece) => {
+    const matchesColor = String(piece.color_name || '').toLowerCase() === colorName
+    const matchesFabric = !fabricGuess || String(piece.fabric_type_guess || '').toLowerCase() === fabricGuess
+    return matchesColor && matchesFabric
+  })
+  if (byColorAndFabric.length) return byColorAndFabric
+
+  return pieces.filter((piece) => String(piece.color_name || '').toLowerCase() === colorName)
+}
+
+function makeLotKey(fabricType, composition, colorName) {
+  return [fabricType, composition, colorName]
+    .map((part) => String(part || 'unspecified').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'unspecified')
+    .join('::')
 }
 
 function sortByBin(a, b) {

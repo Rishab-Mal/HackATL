@@ -4,6 +4,7 @@ import { useCart } from '../context/CartContext.jsx'
 import ActivityFeed from '../components/ActivityFeed.jsx'
 import CarterSpotlight from '../components/CarterSpotlight.jsx'
 import LotFilters from '../components/LotFilters.jsx'
+import { formatMoney, formatWeightKg } from '../utils/formatters.js'
 
 const EMPTY_FILTERS = { fabric_type: '', color_name: '', min_price: '', max_price: '' }
 
@@ -64,19 +65,18 @@ export default function Marketplace() {
               <div className="swatch" style={{ background: lot.color_hex }} />
               <div className="lot-info">
                 <h3>{lot.name}</h3>
-                <p className="muted">{lot.fabric_type} · {(lot.weight_kg * 2.205).toFixed(1)} lb</p>
+                <p className="muted">{lot.fabric_type} · {formatWeightKg(lot.weight_kg)}</p>
                 <div className="lot-stats">
                   <span className="lot-price">
-                    ${lot.current_price_usd.toFixed(2)}
+                    {formatMoney(lot.current_price_usd)}
                     {lot.price_decay_pct > 0 && (
                       <span className="decay-badge">↓{lot.price_decay_pct}%</span>
                     )}
                   </span>
                 </div>
-                {lot.description && <p className="lot-description">{lot.description}</p>}
                 {lot.price_decay_pct > 0 && (
                   <p className="muted decay-hint">
-                    Listed {lot.days_listed}d ago · was ${lot.price_usd.toFixed(2)}
+                    Listed {lot.days_listed}d ago · was {formatMoney(lot.price_usd)}
                   </p>
                 )}
                 <div className="claim-row">

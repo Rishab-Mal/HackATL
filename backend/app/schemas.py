@@ -95,9 +95,14 @@ class LotCreate(BaseModel):
     composition: str
     color_name: str
     color_hex: str
+    lot_key: Optional[str] = None
+    scan_run_id: Optional[int] = None
+    piece_images: List[dict[str, Any]] = Field(default_factory=list)
     piece_count: int = 0
     weight_kg: float = 0.0
     price_usd: float = 0.0
+    origin_lat: Optional[float] = None
+    origin_lng: Optional[float] = None
 
 
 class LotOut(BaseModel):
@@ -110,6 +115,9 @@ class LotOut(BaseModel):
     composition: str
     color_name: str
     color_hex: str
+    lot_key: Optional[str] = None
+    scan_run_id: Optional[int] = None
+    piece_images: List[dict[str, Any]] = Field(default_factory=list)
     piece_count: int
     weight_kg: float
     price_usd: float          # base price at time of listing
@@ -118,14 +126,45 @@ class LotOut(BaseModel):
     days_listed: int          # days since created
     carbon_saved_kg: float
     water_saved_l: float
+    origin_lat: Optional[float] = None
+    origin_lng: Optional[float] = None
     status: str
     claimed_by: Optional[str] = None
     claimed_at: Optional[datetime] = None
     created_at: datetime
 
 
+class ScanRunCreate(BaseModel):
+    annotated_image_data_url: Optional[str] = None
+    image_width: int = 0
+    image_height: int = 0
+    piece_count: int = 0
+    group_count: int = 0
+    total_weight_kg: float = 0.0
+    total_carbon_saved_kg: float = 0.0
+    total_water_saved_l: float = 0.0
+    summary: dict[str, Any] = Field(default_factory=dict)
+
+
+class ScanRunOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    annotated_image_data_url: Optional[str] = None
+    image_width: int
+    image_height: int
+    piece_count: int
+    group_count: int
+    total_weight_kg: float
+    total_carbon_saved_kg: float
+    total_water_saved_l: float
+    summary: dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime
+
+
 class LotClaim(BaseModel):
     buyer_name: str
+    quantity_kg: Optional[float] = None
 
 
 class ColorOption(BaseModel):

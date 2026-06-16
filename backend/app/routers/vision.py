@@ -3,7 +3,7 @@
 from typing import Optional
 
 import cv2
-from fastapi import APIRouter, BackgroundTasks, File, HTTPException, Query, Response, UploadFile
+from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Query, Response, UploadFile
 from fastapi.responses import HTMLResponse
 
 from ..config import get_settings
@@ -15,7 +15,7 @@ router = APIRouter(prefix="/api/vision", tags=["vision"])
 
 
 @router.post("/detect", response_model=DetectResponse)
-async def detect(image: UploadFile = File(...)):
+async def detect(image: UploadFile = File(...), use_deployment: bool = Form(default=True)):
     """Accept a photo of mixed scraps and return detected pieces plus
     color-based groups (the "before -> after" sorting result)."""
 
@@ -24,7 +24,7 @@ async def detect(image: UploadFile = File(...)):
         raise HTTPException(status_code=400, detail="Empty file")
 
     try:
-        return detect_pieces(contents)
+        return detect_pieces(contents, use_deployment=use_deployment)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -38,7 +38,10 @@ async def warmup(background_tasks: BackgroundTasks):
     if not settings.replicate_api_token:
         return {"status": "skipped"}
     background_tasks.add_task(
-        warmup_replicate, settings.replicate_api_token, settings.replicate_sam_model
+        warmup_replicate,
+        settings.replicate_api_token,
+        settings.replicate_sam_model,
+        deployment=settings.replicate_deployment,
     )
     return {"status": "warming"}
 

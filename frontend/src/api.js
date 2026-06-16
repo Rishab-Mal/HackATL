@@ -20,10 +20,29 @@ async function request(path, options = {}) {
 // Vision (Person 1)
 // ---------------------------------------------------------------------------
 
-export function detectScrap(file) {
+export function detectScrap(file, options = {}) {
   const formData = new FormData()
   formData.append('image', file)
+  if (options.useDeployment !== undefined) {
+    formData.append('use_deployment', options.useDeployment ? 'true' : 'false')
+  }
   return request('/vision/detect', { method: 'POST', body: formData })
+}
+
+// ---------------------------------------------------------------------------
+// Auth / current user
+// ---------------------------------------------------------------------------
+
+export function getMe() {
+  return request('/auth/me')
+}
+
+export function saveMyLocation(lat, lng) {
+  return request('/auth/me/location', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ lat, lng }),
+  })
 }
 
 // ---------------------------------------------------------------------------
@@ -53,6 +72,14 @@ export function createLot(lot) {
   })
 }
 
+export function createScanRun(scanRun) {
+  return request('/lots/scan-runs', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(scanRun),
+  })
+}
+
 // ---------------------------------------------------------------------------
 // Marketplace + impact (Person 4)
 // ---------------------------------------------------------------------------
@@ -65,11 +92,13 @@ export function getActivity() {
   return request('/marketplace/activity')
 }
 
-export function claimLot(lotId, buyerName) {
+export function claimLot(lotId, buyerName, quantityKg = null) {
+  const body = { buyer_name: buyerName }
+  if (quantityKg !== undefined && quantityKg !== null) body.quantity_kg = quantityKg
   return request(`/lots/${lotId}/claim`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ buyer_name: buyerName }),
+    body: JSON.stringify(body),
   })
 }
 
@@ -83,6 +112,14 @@ export function delistLot(lotId) {
 
 export function relistLot(lotId) {
   return request(`/lots/${lotId}/relist`, { method: 'PATCH' })
+}
+
+export function deleteLot(lotId) {
+  return request(`/lots/${lotId}`, { method: 'DELETE' })
+}
+
+export function getAdminMetrics() {
+  return request('/admin/metrics')
 }
 
 // ---------------------------------------------------------------------------

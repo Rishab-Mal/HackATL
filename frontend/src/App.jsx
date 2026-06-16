@@ -4,6 +4,7 @@ import { CartProvider, useCart } from './context/CartContext.jsx'
 import ProtectedRoute from './components/ProtectedRoute.jsx'
 import ChatBot from './components/ChatBot.jsx'
 import ErrorBoundary from './components/ErrorBoundary.jsx'
+import OrderConfirmation from './components/OrderConfirmation.jsx'
 
 import Login from './pages/Login.jsx'
 import LandingPage from './pages/LandingPage.jsx'
@@ -19,10 +20,11 @@ import SortedLots from './pages/SortedLots.jsx'
 
 // Buyer portal
 import BuyerMarketplace from './pages/buyer/BuyerMarketplace.jsx'
+import BuyerOrders from './pages/buyer/BuyerOrders.jsx'
 
 // Shared pages still available inside portals
-import Marketplace from './pages/Marketplace.jsx'
 import Dashboard from './pages/Dashboard.jsx'
+import { formatMoney, formatWeightKg } from './utils/formatters.js'
 
 function CartButton() {
   const { items, total, isOpen, setIsOpen } = useCart()
@@ -34,9 +36,16 @@ function CartButton() {
       aria-label="Open cart"
     >
       <span className="nav-cart-badge">{items.length}</span>
-      <span style={{ fontSize: 12 }}>Order &nbsp;·&nbsp; ${total.toFixed(2)}</span>
+      <span style={{ fontSize: 12 }}>Order &nbsp;·&nbsp; {formatMoney(total)}</span>
     </button>
   )
+}
+
+function cartItemPrice({ lot, qty }) {
+  const totalWeight = Number(lot.weight_kg) || 0
+  const totalPrice = Number(lot.current_price_usd) || 0
+  if (!qty || qty >= totalWeight || totalWeight <= 0) return totalPrice
+  return Number((totalPrice * (qty / totalWeight)).toFixed(4))
 }
 
 function CheckoutPanel() {
@@ -71,11 +80,11 @@ function CheckoutPanel() {
                   : <div className="checkout-item-buyer">→ {user?.name}</div>
                 }
                 <div className="checkout-item-meta">
-                  {lot.fabric_type} · {qty ? `${(qty * 2.205).toFixed(1)} lb` : `${(lot.weight_kg * 2.205).toFixed(1)} lb`}
+                  {lot.fabric_type} · {formatWeightKg(qty || lot.weight_kg)}
                 </div>
               </div>
               <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                <div className="checkout-item-price">${lot.current_price_usd.toFixed(2)}</div>
+                <div className="checkout-item-price">{formatMoney(cartItemPrice({ lot, qty }))}</div>
                 <button className="cart-remove" style={{ marginTop: 4 }} onClick={() => removeFromCart(lot.id)}>
                   Remove
                 </button>
@@ -90,7 +99,7 @@ function CheckoutPanel() {
               {items.length} lot{items.length !== 1 ? 's' : ''}
             </span>
             <span style={{ fontSize: 20, fontWeight: 700, color: 'var(--c-text)', letterSpacing: '-0.5px' }}>
-              ${total.toFixed(2)}
+              {formatMoney(total)}
             </span>
           </div>
           <button
@@ -124,8 +133,8 @@ function PortalNav() {
       { to: '/admin/impact', label: 'Impact' },
     ],
     buyer: [
-      { to: '/buyer', label: 'Browse Lots', end: true },
-      { to: '/buyer/marketplace', label: 'Marketplace' },
+      { to: '/buyer', label: 'Marketplace', end: true },
+      { to: '/buyer/orders', label: 'My Orders' },
     ],
   }
 
@@ -153,7 +162,7 @@ function PortalNav() {
 function AppInner() {
   const { user } = useAuth()
   const location = useLocation()
-  const { lastSuccess } = useCart()
+  const { lastSuccess, lastOrder, clearLastOrder } = useCart()
 
   // Factory routes use their own full-screen operator shell (FactoryHeader + dark UI)
   const isFactory = location.pathname.startsWith('/factory')
@@ -186,7 +195,7 @@ function AppInner() {
 
             {/* Buyer */}
             <Route path="/buyer" element={<ProtectedRoute role="buyer"><BuyerMarketplace /></ProtectedRoute>} />
-            <Route path="/buyer/marketplace" element={<ProtectedRoute role="buyer"><Marketplace /></ProtectedRoute>} />
+            <Route path="/buyer/orders" element={<ProtectedRoute role="buyer"><BuyerOrders /></ProtectedRoute>} />
 
             {/* Root: landing page for guests, portal home for authed users */}
             <Route path="/" element={user ? <Navigate to={`/${user.role}`} replace /> : <LandingPage />} />
@@ -195,6 +204,7 @@ function AppInner() {
         </ErrorBoundary>
       </main>
       <CheckoutPanel />
+      {lastOrder && <OrderConfirmation order={lastOrder} onClose={clearLastOrder} />}
       {!isFactory && <ChatBot />}
     </div>
   )

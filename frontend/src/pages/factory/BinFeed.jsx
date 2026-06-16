@@ -3,11 +3,11 @@ import { getLots } from '../../api.js'
 import { FactoryHeader } from '../Capture.jsx'
 
 const BINS = [
-  { id: 'A', label: 'Bin A', desc: 'White / natural', colors: ['white', 'natural', 'cream', 'ivory'], bg: '#24231f', border: '#b7a879' },
-  { id: 'B', label: 'Bin B', desc: 'Blue / denim', colors: ['blue', 'navy', 'denim', 'indigo'], bg: '#202631', border: '#73879a' },
-  { id: 'C', label: 'Bin C', desc: 'Black / gray', colors: ['black', 'grey', 'gray', 'charcoal'], bg: '#242526', border: '#85817a' },
-  { id: 'D', label: 'Bin D', desc: 'Earth / warm', colors: ['beige', 'brown', 'tan', 'red', 'orange'], bg: '#2b241d', border: '#b17d4e' },
-  { id: 'E', label: 'Bin E', desc: 'Mixed / review', colors: [], bg: '#202820', border: '#77906e' },
+  { id: 'A', label: 'Bin A', desc: 'White / natural', colors: ['white', 'natural', 'cream', 'ivory'], bg: '#fbfaf7', border: '#d6cdbd' },
+  { id: 'B', label: 'Bin B', desc: 'Blue / denim', colors: ['blue', 'navy', 'denim', 'indigo'], bg: '#f2f6fa', border: '#b8c7d8' },
+  { id: 'C', label: 'Bin C', desc: 'Black / gray', colors: ['black', 'grey', 'gray', 'charcoal'], bg: '#f5f5f4', border: '#c7c7c3' },
+  { id: 'D', label: 'Bin D', desc: 'Earth / warm', colors: ['beige', 'brown', 'tan', 'red', 'orange'], bg: '#fbf6ef', border: '#d7b98f' },
+  { id: 'E', label: 'Bin E', desc: 'Mixed / review', colors: [], bg: '#f0fdf4', border: '#86b596' },
 ]
 
 function assignBin(colorName) {
