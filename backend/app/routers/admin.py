@@ -1,8 +1,7 @@
 """Admin operations dashboard and demo reset endpoints."""
 
 from collections import defaultdict
-from datetime import datetime
-from zoneinfo import ZoneInfo
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import text
@@ -74,9 +73,11 @@ def _status_counts(lots: list[models.Lot]) -> dict:
 
 
 def _run_label(created_at: datetime) -> str:
-    base = created_at if created_at.tzinfo else created_at.replace(tzinfo=ZoneInfo("UTC"))
-    eastern = base.astimezone(ZoneInfo("America/New_York"))
-    return eastern.strftime("%b %-d, %-I:%M %p")
+    base = created_at if created_at.tzinfo else created_at.replace(tzinfo=timezone.utc)
+    eastern = base.astimezone(timezone(timedelta(hours=-4)))  # EDT; close enough for demo
+    hour12 = eastern.hour % 12 or 12
+    ampm = "AM" if eastern.hour < 12 else "PM"
+    return f"{eastern.strftime('%b')} {eastern.day}, {hour12}:{eastern.strftime('%M')} {ampm}"
 
 
 @router.get("/metrics")
