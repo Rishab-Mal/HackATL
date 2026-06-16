@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { getLots } from '../../api.js'
 import { useCart } from '../../context/CartContext.jsx'
+import SupplierMap from '../../components/SupplierMap.jsx'
+import LotDetailModal from '../../components/LotDetailModal.jsx'
 import { formatInputKg, formatMoney, formatUnitPrice, formatWeightKg, lotQuantityStep } from '../../utils/formatters.js'
 
 export default function BuyerMarketplace() {
@@ -12,6 +14,8 @@ export default function BuyerMarketplace() {
   const [imageIndex, setImageIndex] = useState({})
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [view, setView] = useState('grid')
+  const [detailLot, setDetailLot] = useState(null)
 
   function refresh() {
     setLoading(true)
@@ -88,14 +92,38 @@ export default function BuyerMarketplace() {
           <h1>Available Lots</h1>
           <p className="subtitle">Grouped textile scrap inventory from factory scans, ready for quantity-based orders.</p>
         </div>
-        <div className="buyer-hero-stats">
-          <strong>{visibleLots.length}</strong>
-          <span>{visibleLots.length === 1 ? 'listing' : 'listings'}</span>
+        <div className="buyer-hero-aside">
+          <div className="buyer-view-toggle">
+            <button
+              className={view === 'grid' ? 'is-active' : ''}
+              onClick={() => setView('grid')}
+            >
+              Grid
+            </button>
+            <button
+              className={view === 'map' ? 'is-active' : ''}
+              onClick={() => setView('map')}
+            >
+              Map
+            </button>
+          </div>
+          <div className="buyer-hero-stats">
+            <strong>{visibleLots.length}</strong>
+            <span>{visibleLots.length === 1 ? 'listing' : 'listings'}</span>
+          </div>
         </div>
       </div>
 
       {error && <div className="error">{error}</div>}
 
+      {view === 'map' && (
+        <div className="buyer-map-wrap">
+          <SupplierMap lots={lots} />
+        </div>
+      )}
+
+      {view === 'grid' && (
+      <>
       <div className="buyer-toolbar">
         <label className="buyer-search">
           <IconSearch />
@@ -160,12 +188,16 @@ export default function BuyerMarketplace() {
 
           return (
             <article className="buyer-lot-card" key={lot.id}>
-              <div className="buyer-lot-media">
+              <div
+                className="buyer-lot-media buyer-lot-media--clickable"
+                onClick={() => setDetailLot(lot)}
+                title="View lot details"
+              >
                 {images.length ? (
                   <>
                     <img src={images[activeImage]?.src} alt={`${lot.name} fabric piece ${activeImage + 1}`} />
                     {images.length > 1 && (
-                      <div className="buyer-media-controls">
+                      <div className="buyer-media-controls" onClick={e => e.stopPropagation()}>
                         <button type="button" onClick={() => cycleImage(lot.id, images.length, -1)} aria-label="Previous image">
                           <IconChevronLeft />
                         </button>
@@ -189,7 +221,7 @@ export default function BuyerMarketplace() {
                   {lot.source_count > 1 && <span className="buyer-merged-badge">{lot.source_count} scans merged</span>}
                 </div>
 
-                <div className="buyer-lot-name">{lot.name}</div>
+                <div className="buyer-lot-name buyer-lot-name--clickable" onClick={() => setDetailLot(lot)}>{lot.name}</div>
 
                 <div className="buyer-lot-meta-row">
                   <span className="buyer-swatch-dot" style={{ background: lot.color_hex }} />
@@ -259,6 +291,10 @@ export default function BuyerMarketplace() {
           </div>
         )}
       </div>
+      </>
+      )}
+
+      {detailLot && <LotDetailModal lot={detailLot} onClose={() => setDetailLot(null)} />}
     </div>
   )
 }

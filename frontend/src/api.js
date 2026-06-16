@@ -20,10 +20,29 @@ async function request(path, options = {}) {
 // Vision (Person 1)
 // ---------------------------------------------------------------------------
 
-export function detectScrap(file) {
+export function detectScrap(file, options = {}) {
   const formData = new FormData()
   formData.append('image', file)
+  if (options.useDeployment !== undefined) {
+    formData.append('use_deployment', options.useDeployment ? 'true' : 'false')
+  }
   return request('/vision/detect', { method: 'POST', body: formData })
+}
+
+// ---------------------------------------------------------------------------
+// Auth / current user
+// ---------------------------------------------------------------------------
+
+export function getMe() {
+  return request('/auth/me')
+}
+
+export function saveMyLocation(lat, lng) {
+  return request('/auth/me/location', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ lat, lng }),
+  })
 }
 
 // ---------------------------------------------------------------------------

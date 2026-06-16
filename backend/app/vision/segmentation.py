@@ -33,7 +33,7 @@ MIN_AREA_FRACTION = 0.0008
 MAX_AREA_FRACTION = 0.45
 
 
-def detect_pieces(image_bytes: bytes) -> dict:
+def detect_pieces(image_bytes: bytes, use_deployment: bool = True) -> dict:
     settings = get_settings()
     image_bgr, original_bgr, original_to_work_scale = _decode_image(image_bytes, settings.max_image_dimension)
     h, w = image_bgr.shape[:2]
@@ -49,13 +49,17 @@ def detect_pieces(image_bytes: bytes) -> dict:
     )
 
     try:
+        deployment = settings.replicate_deployment if use_deployment else ""
         raw_masks = segment_with_replicate(
             image_bgr,
             token=settings.replicate_api_token,
             model=settings.replicate_sam_model,
             max_masks=max(settings.max_pieces * 3, 50),
+            deployment=deployment,
         )
-        segmentation_method = f"replicate:{settings.replicate_sam_model}"
+        segmentation_method = (
+            f"replicate-deployment:{deployment}" if deployment else f"replicate:{settings.replicate_sam_model}"
+        )
     except SegmentationError as exc:
         raise ValueError(str(exc)) from exc
 

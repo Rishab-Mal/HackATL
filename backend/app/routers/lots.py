@@ -62,6 +62,8 @@ def _enrich(lot: models.Lot) -> schemas.LotOut:
         days_listed=days_listed(lot.created_at),
         carbon_saved_kg=lot.carbon_saved_kg,
         water_saved_l=lot.water_saved_l,
+        origin_lat=lot.origin_lat,
+        origin_lng=lot.origin_lng,
         status=lot.status,
         claimed_by=lot.claimed_by,
         claimed_at=lot.claimed_at,
@@ -94,6 +96,9 @@ def create_lot(lot: schemas.LotCreate, db: Session = Depends(get_db)):
 
     if existing:
         existing.lot_key = lot_key
+        if existing.origin_lat is None and lot.origin_lat is not None:
+            existing.origin_lat = lot.origin_lat
+            existing.origin_lng = lot.origin_lng
         existing.weight_kg = round((existing.weight_kg or 0) + lot.weight_kg, 3)
         existing.piece_count = (existing.piece_count or 0) + lot.piece_count
         existing.carbon_saved_kg = round(existing.weight_kg * CARBON_PER_KG, 2)
@@ -187,6 +192,7 @@ def list_lots(
     status: Optional[str] = Query(default=None),
     fabric_type: Optional[str] = Query(default=None),
     color_name: Optional[str] = Query(default=None),
+    claimed_by: Optional[str] = Query(default=None),
     min_price: Optional[float] = Query(default=None),
     max_price: Optional[float] = Query(default=None),
     db: Session = Depends(get_db),
@@ -198,6 +204,8 @@ def list_lots(
         query = query.filter(models.Lot.fabric_type == fabric_type)
     if color_name:
         query = query.filter(models.Lot.color_name == color_name)
+    if claimed_by:
+        query = query.filter(models.Lot.claimed_by == claimed_by)
     if min_price is not None:
         query = query.filter(models.Lot.price_usd >= min_price)
     if max_price is not None:

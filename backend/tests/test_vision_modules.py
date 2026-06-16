@@ -1,4 +1,5 @@
 import sys
+import types
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -12,6 +13,7 @@ sys.path.insert(0, str(ROOT))
 from app.vision.annotation import assign_sort_groups
 from app.vision.colors import color_family, closest_color_name, color_clusters, dominant_color_rgb, pattern_type
 from app.vision.measurement import detect_scale_reference, estimate_weight_g
+from app.vision.replicate_sam import segment_with_replicate
 from app.vision.segmentation import _clean_masks, detect_pieces
 
 
@@ -271,6 +273,48 @@ class VisionModuleTests(unittest.TestCase):
         self.assertEqual(counts, {"navy": 3, "cream": 3, "red": 3, "black": 3})
         self.assertEqual(len(reference_discards), 1)
 
+    def test_detect_pieces_can_skip_configured_deployment(self):
+        image_bgr, raw_masks = _synthetic_scrap_scene()
+        ok, encoded = cv2.imencode(".png", image_bgr)
+        self.assertTrue(ok)
+
+        with patch("app.vision.segmentation.segment_with_replicate", return_value=raw_masks) as segment, patch(
+            "app.vision.segmentation.classify_materials", side_effect=_fake_materials
+        ):
+            detect_pieces(encoded.tobytes(), use_deployment=False)
+
+        self.assertEqual(segment.call_args.kwargs["deployment"], "")
+
+    def test_replicate_deployment_failure_falls_back_to_public_model(self):
+        fake_replicate = _FakeReplicate(deployment_error=RuntimeError("server offline"), public_output=_encoded_mask())
+
+        with patch.dict(sys.modules, {"replicate": fake_replicate}):
+            masks = segment_with_replicate(
+                np.full((32, 32, 3), 255, dtype=np.uint8),
+                token="token",
+                model="lucataco/segment-anything-2",
+                deployment="owner/reweave-sam",
+            )
+
+        self.assertEqual(len(masks), 1)
+        self.assertEqual(fake_replicate.deployment_calls, 1)
+        self.assertEqual(fake_replicate.public_calls, 1)
+
+    def test_replicate_empty_deployment_output_falls_back_to_public_model(self):
+        fake_replicate = _FakeReplicate(deployment_output=None, public_output=_encoded_mask())
+
+        with patch.dict(sys.modules, {"replicate": fake_replicate}):
+            masks = segment_with_replicate(
+                np.full((32, 32, 3), 255, dtype=np.uint8),
+                token="token",
+                model="lucataco/segment-anything-2",
+                deployment="owner/reweave-sam",
+            )
+
+        self.assertEqual(len(masks), 1)
+        self.assertEqual(fake_replicate.deployment_calls, 1)
+        self.assertEqual(fake_replicate.public_calls, 1)
+
 
 def _synthetic_scrap_scene():
     image = np.full((650, 900, 3), 245, dtype=np.uint8)
@@ -306,6 +350,53 @@ def _synthetic_scrap_scene():
 
     masks.append(marker_mask)
     return image, masks
+
+
+def _encoded_mask():
+    mask = np.zeros((32, 32), dtype=np.uint8)
+    mask[8:24, 8:24] = 255
+    ok, encoded = cv2.imencode(".png", mask)
+    if not ok:
+        raise AssertionError("Could not encode test mask")
+    return encoded.tobytes()
+
+
+class _FakePrediction:
+    def __init__(self, output, status="succeeded", error=None):
+        self.output = output
+        self.status = status
+        self.error = error
+
+    def wait(self):
+        return None
+
+
+class _FakeDeploymentPredictions:
+    def __init__(self, fake):
+        self.fake = fake
+
+    def create(self, _deployment, input):
+        self.fake.deployment_calls += 1
+        if self.fake.deployment_error:
+            raise self.fake.deployment_error
+        return _FakePrediction(self.fake.deployment_output)
+
+
+class _FakeReplicate:
+    def __init__(self, deployment_output=None, deployment_error=None, public_output=None):
+        self.deployment_output = deployment_output
+        self.deployment_error = deployment_error
+        self.public_output = public_output
+        self.deployment_calls = 0
+        self.public_calls = 0
+        self.deployments = types.SimpleNamespace(predictions=_FakeDeploymentPredictions(self))
+        self.models = types.SimpleNamespace(
+            get=lambda _model: types.SimpleNamespace(latest_version=types.SimpleNamespace(id="version-id"))
+        )
+
+    def run(self, _ref, input):
+        self.public_calls += 1
+        return self.public_output
 
 
 def _fake_materials(_image_bgr, pieces, **_kwargs):

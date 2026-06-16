@@ -28,6 +28,24 @@ export function formatWeightKg(value) {
   return `${formatNumber(grams * 1000, 0)} mg`
 }
 
+// Mass for impact figures (CO2). Shows grams under 1 kg so small lots still
+// read as real numbers instead of "0.0 kg".
+export function formatImpactMass(kg) {
+  const value = Number(kg) || 0
+  if (value <= 0) return '0 g'
+  if (value >= 1) return `${formatNumber(value, value >= 10 ? 0 : 1)} kg`
+  const grams = value * 1000
+  return `${formatNumber(grams, grams < 10 ? 1 : 0)} g`
+}
+
+// Water volume. Shows whole liters under 1,000 L, then compact "K L".
+export function formatWater(liters) {
+  const value = Number(liters) || 0
+  if (value <= 0) return '0 L'
+  if (value < 1000) return `${formatNumber(value, value < 10 ? 1 : 0)} L`
+  return `${formatNumber(value / 1000, 1)}K L`
+}
+
 export function formatInputKg(value) {
   const kg = Number(value) || 0
   if (kg <= 0) return '0'

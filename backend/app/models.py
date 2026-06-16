@@ -30,6 +30,9 @@ class Lot(Base):
     price_usd = Column(Float, default=0.0)
     carbon_saved_kg = Column(Float, default=0.0)
     water_saved_l = Column(Float, default=0.0)
+    # Origin — where the factory worker shared their location during the scan
+    origin_lat = Column(Float, nullable=True)
+    origin_lng = Column(Float, nullable=True)
     # Marketplace lifecycle
     status = Column(String, default="available")  # available | claimed | unlisted
     claimed_by = Column(String, nullable=True)
@@ -65,6 +68,9 @@ class User(Base):
     password_hash = Column(String, nullable=False)
     role = Column(String, nullable=False)  # factory | admin | buyer
     name = Column(String, default="")
+    # Buyer's saved location, used to anchor the marketplace map and shipping math
+    lat = Column(Float, nullable=True)
+    lng = Column(Float, nullable=True)
 
 
 class Buyer(Base):

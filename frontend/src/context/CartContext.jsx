@@ -11,6 +11,7 @@ export function CartProvider({ children }) {
   const [isOpen, setIsOpen] = useState(false)
   const [placing, setPlacing] = useState(false)
   const [lastSuccess, setLastSuccess] = useState(null)
+  const [lastOrder, setLastOrder] = useState(null)
 
   const items = Object.values(cart)
   const total = items.reduce((s, item) => s + itemPrice(item), 0)
@@ -43,6 +44,21 @@ export function CartProvider({ children }) {
   async function checkout(fallbackBuyerName, onDone) {
     if (!items.length || placing) return
     setPlacing(true)
+    // Snapshot the order before we clear the cart, so the confirmation popup
+    // can show what was just claimed and the impact it carried.
+    const summary = items.map(({ lot, qty }) => {
+      const weight = qty == null ? lot.weight_kg : qty
+      const ratio = lot.weight_kg > 0 ? Math.min(weight / lot.weight_kg, 1) : 1
+      return {
+        name: lot.name,
+        fabric_type: lot.fabric_type,
+        color_hex: lot.color_hex,
+        weight,
+        price: itemPrice({ lot, qty }),
+        carbon: (lot.carbon_saved_kg || 0) * ratio,
+        water: (lot.water_saved_l || 0) * ratio,
+      }
+    })
     try {
       for (const { lot, buyerName, qty } of items) {
         const components = lot.component_lots?.length ? lot.component_lots : [lot]
@@ -59,8 +75,14 @@ export function CartProvider({ children }) {
       const count = items.length
       clearCart()
       setIsOpen(false)
-      setLastSuccess(`${count} lot${count > 1 ? 's' : ''} claimed successfully.`)
-      setTimeout(() => setLastSuccess(null), 5000)
+      setLastOrder({
+        count,
+        lots: summary,
+        totalPrice: summary.reduce((s, l) => s + l.price, 0),
+        totalWeight: summary.reduce((s, l) => s + l.weight, 0),
+        totalCarbon: summary.reduce((s, l) => s + l.carbon, 0),
+        totalWater: summary.reduce((s, l) => s + l.water, 0),
+      })
       window.dispatchEvent(new CustomEvent('lots:changed'))
       onDone?.()
     } catch (err) {
@@ -77,6 +99,7 @@ export function CartProvider({ children }) {
       addToCart, updateQty, removeFromCart, clearCart, checkout,
       isOpen, setIsOpen,
       placing, lastSuccess,
+      lastOrder, clearLastOrder: () => setLastOrder(null),
     }}>
       {children}
     </CartContext.Provider>

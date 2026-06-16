@@ -19,7 +19,7 @@ class SegmentationError(RuntimeError):
     pass
 
 
-def segment_with_replicate(image_bgr, token: str, model: str, max_masks: int = 80):
+def segment_with_replicate(image_bgr, token: str, model: str, max_masks: int = 80, deployment: str = ""):
     if not token:
         raise SegmentationError("REPLICATE_API_TOKEN is not configured")
 
@@ -42,21 +42,84 @@ def segment_with_replicate(image_bgr, token: str, model: str, max_masks: int = 8
         tmp.write(encoded.tobytes())
         tmp.close()
         with open(tmp.name, "rb") as image_file:
-            input_payload = _input_payload(model, image_file, max_masks=max_masks)
-            try:
-                output = replicate.run(_resolved_ref(replicate, model), input=input_payload)
-            except Exception as exc:
-                raise SegmentationError(f"Replicate SAM call failed: {exc}") from exc
+            masks, error = _segment_with_fallback(
+                replicate=replicate,
+                image_file=image_file,
+                image_shape=image_bgr.shape[:2],
+                model=model,
+                max_masks=max_masks,
+                deployment=deployment,
+            )
     finally:
         os.unlink(tmp.name)
 
-    masks = _extract_masks(output, image_bgr.shape[:2])
     if not masks:
+        if error is not None:
+            raise SegmentationError(f"Replicate returned no usable masks after fallback: {error}") from error
         raise SegmentationError("Replicate returned no usable masks")
     return masks
 
 
-def warmup_replicate(token: str, model: str, max_masks: int = 8) -> bool:
+def _segment_with_fallback(replicate, image_file, image_shape, model: str, max_masks: int, deployment: str):
+    deployment_error = None
+
+    if deployment:
+        try:
+            masks = _segment_once(
+                replicate=replicate,
+                image_file=image_file,
+                image_shape=image_shape,
+                model=model,
+                max_masks=max_masks,
+                deployment=deployment,
+            )
+            if masks:
+                return masks, None
+            deployment_error = SegmentationError("deployment returned no usable masks")
+        except Exception as exc:
+            deployment_error = exc
+
+    try:
+        return _segment_once(
+            replicate=replicate,
+            image_file=image_file,
+            image_shape=image_shape,
+            model=model,
+            max_masks=max_masks,
+            deployment="",
+        ), deployment_error
+    except Exception as exc:
+        if deployment_error is not None:
+            raise SegmentationError(
+                f"deployment path failed ({deployment_error}); public model fallback failed ({exc})"
+            ) from exc
+        raise SegmentationError(f"Replicate SAM call failed: {exc}") from exc
+
+
+def _segment_once(replicate, image_file, image_shape, model: str, max_masks: int, deployment: str):
+    image_file.seek(0)
+    input_payload = _input_payload(model, image_file, max_masks=max_masks)
+    output = _run_segmentation(replicate, model, deployment, input_payload)
+    return _extract_masks(output, image_shape)
+
+
+def _run_segmentation(replicate, model: str, deployment: str, input_payload: dict):
+    """Run SAM either against a dedicated always-warm deployment (no cold start)
+    or the public model. The deployment path returns the same output shape that
+    replicate.run() produces, so mask extraction downstream is unchanged."""
+
+    if deployment:
+        prediction = replicate.deployments.predictions.create(deployment, input=input_payload)
+        prediction.wait()
+        if prediction.status != "succeeded":
+            raise SegmentationError(
+                f"Replicate deployment prediction ended with status {prediction.status}: {prediction.error}"
+            )
+        return prediction.output
+    return replicate.run(_resolved_ref(replicate, model), input=input_payload)
+
+
+def warmup_replicate(token: str, model: str, max_masks: int = 8, deployment: str = "") -> bool:
     """Fire a tiny throwaway SAM call to boot the Replicate container ahead of a
     real scan, so the worker does not pay the cold-start delay. Best effort: any
     failure is swallowed since this only ever runs in the background."""
@@ -80,8 +143,26 @@ def warmup_replicate(token: str, model: str, max_masks: int = 8) -> bool:
             tmp.write(encoded.tobytes())
             tmp.flush()
             with open(tmp.name, "rb") as image_file:
-                payload = _input_payload(model, image_file, max_masks=max_masks)
-                replicate.run(_resolved_ref(replicate, model), input=payload)
+                try:
+                    _segment_once(
+                        replicate=replicate,
+                        image_file=image_file,
+                        image_shape=primer.shape[:2],
+                        model=model,
+                        max_masks=max_masks,
+                        deployment=deployment,
+                    )
+                except Exception:
+                    if not deployment:
+                        raise
+                    _segment_once(
+                        replicate=replicate,
+                        image_file=image_file,
+                        image_shape=primer.shape[:2],
+                        model=model,
+                        max_masks=max_masks,
+                        deployment="",
+                    )
         return True
     except Exception:
         # A warm container is the only goal here; the result is discarded.

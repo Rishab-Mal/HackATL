@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { createLot, createScanRun, detectScrap, resetDemoData } from '../api.js'
+import { createLot, createScanRun, detectScrap, resetDemoData, saveMyLocation } from '../api.js'
 import { useAuth } from '../context/AuthContext.jsx'
 import { ReweaveLogo } from '../components/ReweaveMark.jsx'
 import DestinationAnalysis from '../components/DestinationAnalysis.jsx'
@@ -17,6 +17,11 @@ const STATUS_LINES = [
   'Estimating pieces',
   'Preparing pack list',
 ]
+const VISION_SERVER_PREF_KEY = 'reweave_use_continuous_vision_server'
+
+function savedContinuousServerPref() {
+  return localStorage.getItem(VISION_SERVER_PREF_KEY) === 'true'
+}
 
 export default function Capture() {
   const [stage, setStage] = useState('start') // start | capture | processing | plan | listed | error
@@ -28,10 +33,31 @@ export default function Capture() {
   const [finishedBatch, setFinishedBatch] = useState(null)
   const [statusIdx, setStatusIdx] = useState(0)
   const [zoomOpen, setZoomOpen] = useState(false)
+  const [useContinuousServer, setUseContinuousServer] = useState(savedContinuousServerPref)
 
   const autoSavedRef = useRef(false)
   const canvasRef = useRef(null)
   const imgRef = useRef(null)
+  // Where this factory station is. Captured once from the browser so every lot
+  // scanned here is pinned to the worker's real location on the buyer map.
+  const originRef = useRef(null)
+
+  useEffect(() => {
+    if (!navigator.geolocation) return
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        const { latitude, longitude } = pos.coords
+        originRef.current = { origin_lat: latitude, origin_lng: longitude }
+        saveMyLocation(latitude, longitude).catch(() => {})
+      },
+      () => {},
+      { timeout: 8000 }
+    )
+  }, [])
+
+  useEffect(() => {
+    localStorage.setItem(VISION_SERVER_PREF_KEY, useContinuousServer ? 'true' : 'false')
+  }, [useContinuousServer])
 
   // Cycle the status readout while we wait on the detect call.
   useEffect(() => {
@@ -57,7 +83,7 @@ export default function Capture() {
     setPreviewUrl(URL.createObjectURL(selected))
     setStage('processing')
 
-    detectScrap(selected)
+    detectScrap(selected, { useDeployment: useContinuousServer })
       .then((res) => {
         setResult(res)
         autoSaveLots(res)
@@ -77,9 +103,10 @@ export default function Capture() {
     autoSavedRef.current = true
     const groups = (res && res.groups) || []
     if (groups.length === 0) return
+    const origin = originRef.current || {}
     createScanRun(buildScanRunPayload(res))
       .then((scanRun) => Promise.allSettled(
-        groups.map((g) => createLot({ ...buildLotPayload(g, res), scan_run_id: scanRun.id }))
+        groups.map((g) => createLot({ ...buildLotPayload(g, res), ...origin, scan_run_id: scanRun.id }))
       ))
       .then((results) => {
         const failed = results.filter((r) => r.status === 'rejected')
@@ -255,7 +282,6 @@ export default function Capture() {
         <div className="fx-bar-indeterminate">
           <span />
         </div>
-        <p className="fx-mono-note">Usually done in a few seconds</p>
       </section>
     )
   } else if (stage === 'error') {
@@ -457,7 +483,10 @@ export default function Capture() {
 
   return (
     <div className="factory-app">
-      <FactoryHeader />
+      <FactoryHeader
+        useContinuousServer={useContinuousServer}
+        onUseContinuousServerChange={setUseContinuousServer}
+      />
       <main className={`fx-main ${stage === 'start' ? 'fx-main--dashboard' : ''}`}>{body}</main>
 
       {zoomOpen && annotated && (
@@ -476,9 +505,30 @@ export default function Capture() {
 // Bespoke header (replaces the shared site nav on this page)
 // --------------------------------------------------------------------------
 
-export function FactoryHeader() {
+function VisionServerToggle({ enabled, onChange }) {
+  return (
+    <label className="fx-server-toggle">
+      <input
+        type="checkbox"
+        checked={enabled}
+        onChange={(event) => onChange(event.target.checked)}
+      />
+      <span className="fx-server-switch" aria-hidden="true">
+        <span />
+      </span>
+      <span className="fx-server-copy">
+        <strong>Continuous vision server</strong>
+        <span>{enabled ? 'On: try fast server first' : 'Off: skip server wait'}</span>
+      </span>
+    </label>
+  )
+}
+
+export function FactoryHeader({ useContinuousServer = null, onUseContinuousServerChange = null }) {
   const { logout } = useAuth()
   const [resetting, setResetting] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const showVisionToggle = typeof useContinuousServer === 'boolean' && onUseContinuousServerChange
 
   async function handleReset() {
     if (resetting) return
@@ -500,6 +550,9 @@ export function FactoryHeader() {
       </Link>
 
       <div className="fx-header-actions">
+        {showVisionToggle && (
+          <VisionServerHeaderToggle enabled={useContinuousServer} onChange={onUseContinuousServerChange} />
+        )}
         <button type="button" className="fx-reset" onClick={handleReset} disabled={resetting}>
           {resetting ? 'Resetting…' : 'Reset demo'}
         </button>
@@ -507,7 +560,48 @@ export function FactoryHeader() {
           Sign out
         </button>
       </div>
+
+      <button
+        type="button"
+        className="fx-menu-button"
+        onClick={() => setMenuOpen((open) => !open)}
+        aria-expanded={menuOpen}
+        aria-label="Open factory menu"
+      >
+        <span />
+        <span />
+        <span />
+      </button>
+
+      {menuOpen && (
+        <div className="fx-mobile-menu">
+          {showVisionToggle && (
+            <VisionServerToggle enabled={useContinuousServer} onChange={onUseContinuousServerChange} />
+          )}
+          <button type="button" className="fx-mobile-menu-item" onClick={handleReset} disabled={resetting}>
+            {resetting ? 'Resetting…' : 'Reset demo'}
+          </button>
+          <button type="button" className="fx-mobile-menu-item" onClick={logout}>
+            Sign out
+          </button>
+        </div>
+      )}
     </header>
+  )
+}
+
+function VisionServerHeaderToggle({ enabled, onChange }) {
+  return (
+    <button
+      type="button"
+      className={`fx-server-pill ${enabled ? 'is-on' : ''}`}
+      onClick={() => onChange(!enabled)}
+      aria-pressed={enabled}
+      title={enabled ? 'Continuous vision server on' : 'Continuous vision server off'}
+    >
+      <span>Vision server</span>
+      <strong>{enabled ? 'On' : 'Off'}</strong>
+    </button>
   )
 }
 

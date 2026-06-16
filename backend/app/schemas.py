@@ -101,6 +101,8 @@ class LotCreate(BaseModel):
     piece_count: int = 0
     weight_kg: float = 0.0
     price_usd: float = 0.0
+    origin_lat: Optional[float] = None
+    origin_lng: Optional[float] = None
 
 
 class LotOut(BaseModel):
@@ -124,6 +126,8 @@ class LotOut(BaseModel):
     days_listed: int          # days since created
     carbon_saved_kg: float
     water_saved_l: float
+    origin_lat: Optional[float] = None
+    origin_lng: Optional[float] = None
     status: str
     claimed_by: Optional[str] = None
     claimed_at: Optional[datetime] = None

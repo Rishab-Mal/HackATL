@@ -49,6 +49,26 @@ def init_db():
     Base.metadata.create_all(bind=engine)
     _ensure_lot_metadata_columns()
     _ensure_scan_run_columns()
+    _ensure_user_location_columns()
+
+
+def _ensure_user_location_columns():
+    """Add the buyer location columns to older databases (and the managed
+    Supabase users table) without a separate migration step."""
+    inspector = inspect(engine)
+    if not inspector.has_table("users"):
+        return
+    columns = {col["name"] for col in inspector.get_columns("users")}
+    statements = []
+    if "lat" not in columns:
+        statements.append("ALTER TABLE users ADD COLUMN lat FLOAT")
+    if "lng" not in columns:
+        statements.append("ALTER TABLE users ADD COLUMN lng FLOAT")
+    if not statements:
+        return
+    with engine.begin() as conn:
+        for statement in statements:
+            conn.execute(text(statement))
 
 
 def _ensure_lot_metadata_columns():
@@ -72,6 +92,10 @@ def _ensure_lot_metadata_columns():
             statements.append("ALTER TABLE lots ADD COLUMN piece_images JSONB DEFAULT '[]'::jsonb")
         else:
             statements.append("ALTER TABLE lots ADD COLUMN piece_images JSON DEFAULT '[]'")
+    if "origin_lat" not in columns:
+        statements.append("ALTER TABLE lots ADD COLUMN origin_lat FLOAT")
+    if "origin_lng" not in columns:
+        statements.append("ALTER TABLE lots ADD COLUMN origin_lng FLOAT")
 
     if not statements:
         return
