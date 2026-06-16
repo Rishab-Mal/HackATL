@@ -4,6 +4,7 @@ import { CartProvider, useCart } from './context/CartContext.jsx'
 import ProtectedRoute from './components/ProtectedRoute.jsx'
 import ChatBot from './components/ChatBot.jsx'
 import ErrorBoundary from './components/ErrorBoundary.jsx'
+import ImpactCertificate from './components/ImpactCertificate.jsx'
 
 import LandingPage from './pages/LandingPage.jsx'
 import { FibrBadge, FibrWordmark } from './components/FibrMark.jsx'
@@ -18,6 +19,7 @@ import SortedLots from './pages/SortedLots.jsx'
 
 // Buyer portal
 import BuyerMarketplace from './pages/buyer/BuyerMarketplace.jsx'
+import BuyerOrders from './pages/buyer/BuyerOrders.jsx'
 
 // Shared pages still available inside portals
 import Marketplace from './pages/Marketplace.jsx'
@@ -131,8 +133,8 @@ function PortalNav() {
       { to: '/admin/impact', label: 'Impact' },
     ],
     buyer: [
-      { to: '/buyer', label: 'Browse Lots', end: true },
-      { to: '/buyer/marketplace', label: 'Marketplace' },
+      { to: '/buyer', label: 'Marketplace', end: true },
+      { to: '/buyer/orders', label: 'My Orders' },
     ],
   }
 
@@ -194,7 +196,8 @@ function AppInner() {
 
             {/* Buyer */}
             <Route path="/buyer" element={<ProtectedRoute role="buyer"><BuyerMarketplace /></ProtectedRoute>} />
-            <Route path="/buyer/marketplace" element={<ProtectedRoute role="buyer"><Marketplace /></ProtectedRoute>} />
+            <Route path="/buyer/orders" element={<ProtectedRoute role="buyer"><BuyerOrders /></ProtectedRoute>} />
+            <Route path="/buyer/marketplace" element={<Navigate to="/buyer" replace />} />
 
             {/* Root: landing page for guests, portal home for authed users */}
             <Route path="/" element={user ? <Navigate to={`/${user.role}`} replace /> : <LandingPage />} />
@@ -203,6 +206,7 @@ function AppInner() {
         </ErrorBoundary>
       </main>
       <CheckoutPanel />
+      <ImpactCertificate />
       {!isFactory && <ChatBot />}
     </div>
   )

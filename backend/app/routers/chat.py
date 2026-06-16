@@ -44,15 +44,15 @@ async def chat(body: ChatRequest):
     if not api_key:
         raise HTTPException(status_code=500, detail="OPENROUTER_API_KEY not set")
 
-    async with httpx.AsyncClient() as client:
-        try:
+    try:
+        async with httpx.AsyncClient() as client:
             res = await client.post(
                 "https://openrouter.ai/api/v1/chat/completions",
                 headers={
                     "Authorization": f"Bearer {api_key}",
                     "Content-Type": "application/json",
                     "HTTP-Referer": "http://localhost:5173",
-                    "X-Title": "Scrap Sorter",
+                    "X-Title": "fibr",
                 },
                 json={
                     "model": "openai/gpt-4o-mini",
@@ -65,9 +65,13 @@ async def chat(body: ChatRequest):
                 timeout=30.0,
             )
             res.raise_for_status()
-        except httpx.HTTPStatusError as e:
-            raise HTTPException(status_code=502, detail=f"OpenRouter error: {e.response.text}")
+            data = res.json()
+            reply = data["choices"][0]["message"]["content"]
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(status_code=502, detail=f"OpenRouter error: {e.response.text}")
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=502, detail=f"Could not reach OpenRouter: {type(e).__name__}")
+    except (KeyError, IndexError):
+        raise HTTPException(status_code=502, detail="Unexpected response format from OpenRouter")
 
-    data = res.json()
-    reply = data["choices"][0]["message"]["content"]
     return ChatResponse(reply=reply)

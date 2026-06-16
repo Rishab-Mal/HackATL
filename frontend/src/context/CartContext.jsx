@@ -11,6 +11,7 @@ export function CartProvider({ children }) {
   const [isOpen, setIsOpen] = useState(false)
   const [placing, setPlacing] = useState(false)
   const [lastSuccess, setLastSuccess] = useState(null)
+  const [certLots, setCertLots] = useState(null)   // items from last successful checkout
 
   const items = Object.values(cart)
   const total = items.reduce((s, item) => s + itemPrice(item), 0)
@@ -43,8 +44,9 @@ export function CartProvider({ children }) {
   async function checkout(fallbackBuyerName, onDone) {
     if (!items.length || placing) return
     setPlacing(true)
+    const snapshotItems = [...items]   // capture before clearing
     try {
-      for (const { lot, buyerName, qty } of items) {
+      for (const { lot, buyerName, qty } of snapshotItems) {
         const components = lot.component_lots?.length ? lot.component_lots : [lot]
         let remaining = qty == null ? lot.weight_kg : qty
         for (const component of components) {
@@ -56,9 +58,10 @@ export function CartProvider({ children }) {
           remaining = Number((remaining - claimQty).toFixed(3))
         }
       }
-      const count = items.length
+      const count = snapshotItems.length
       clearCart()
       setIsOpen(false)
+      setCertLots(snapshotItems)
       setLastSuccess(`${count} lot${count > 1 ? 's' : ''} claimed successfully.`)
       setTimeout(() => setLastSuccess(null), 5000)
       window.dispatchEvent(new CustomEvent('lots:changed'))
@@ -77,6 +80,7 @@ export function CartProvider({ children }) {
       addToCart, updateQty, removeFromCart, clearCart, checkout,
       isOpen, setIsOpen,
       placing, lastSuccess,
+      certLots, setCertLots,
     }}>
       {children}
     </CartContext.Provider>

@@ -16,7 +16,7 @@ export default function Dashboard() {
   const [error, setError] = useState(null)
 
   useEffect(() => {
-    const token = localStorage.getItem('scrap_token')
+    const token = localStorage.getItem('reweave_token')
     fetch('/api/admin/metrics', { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
       .then(setM)
