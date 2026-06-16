@@ -6,7 +6,7 @@ import ChatBot from './components/ChatBot.jsx'
 import ErrorBoundary from './components/ErrorBoundary.jsx'
 
 import LandingPage from './pages/LandingPage.jsx'
-import { ReweaveLogo } from './components/ReweaveMark.jsx'
+import { FibrBadge, FibrWordmark } from './components/FibrMark.jsx'
 
 // Factory portal
 import Capture from './pages/Capture.jsx'
