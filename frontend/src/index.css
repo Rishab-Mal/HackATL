@@ -5557,3 +5557,164 @@ html { scroll-behavior: smooth; }
 }
 .map-empty-title { font-size: 15px; font-weight: 700; color: var(--c-text); margin-bottom: 6px; }
 .map-empty-sub { font-size: 12.5px; color: var(--c-muted); line-height: 1.55; }
+
+/* ── CV Pipeline (processing stage) ── */
+@keyframes fx-spin {
+  to { transform: rotate(360deg); }
+}
+
+.factory-app .fx-lead--muted {
+  color: var(--f-muted);
+  font-size: 0.85rem;
+  margin: 0.2rem 0 0;
+}
+
+.factory-app .fx-pipeline {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 1rem 1.25rem;
+  background: var(--f-surface);
+  border: 1px solid var(--f-line);
+  border-radius: 10px;
+  margin: 0.75rem 0;
+}
+
+.factory-app .fx-pipeline-step {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  font-size: 0.85rem;
+  color: var(--f-muted);
+  transition: color 0.25s;
+}
+
+.factory-app .fx-pipeline-step.is-done {
+  color: var(--f-green);
+}
+
+.factory-app .fx-pipeline-step.is-active {
+  color: var(--f-text);
+  font-weight: 600;
+}
+
+.factory-app .fx-pipeline-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.1em;
+  flex-shrink: 0;
+}
+
+/* ── Before/After image toggle ── */
+.factory-app .fx-image-wrap {
+  position: relative;
+}
+
+.factory-app .fx-image-toggle {
+  display: flex;
+  gap: 0;
+  background: rgba(0,0,0,0.55);
+  border: 1px solid var(--f-line);
+  border-radius: 6px;
+  padding: 3px;
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  z-index: 2;
+  backdrop-filter: blur(4px);
+}
+
+.factory-app .fx-image-toggle-btn {
+  background: none;
+  border: none;
+  color: rgba(240,238,232,0.6);
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  padding: 4px 10px;
+  border-radius: 4px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.factory-app .fx-image-toggle-btn.is-active {
+  background: var(--f-surface);
+  color: var(--f-text);
+}
+
+/* ── CV Summary card ── */
+.factory-app .fx-cv-summary {
+  background: var(--f-surface);
+  border: 1px solid var(--f-line);
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+  margin: 0.75rem 0;
+}
+
+.factory-app .fx-cv-summary-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.65rem;
+}
+
+.factory-app .fx-cv-badge {
+  font-size: 0.68rem;
+  font-weight: 750;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--f-green);
+  background: rgba(127,160,111,0.12);
+  border: 1px solid rgba(127,160,111,0.25);
+  border-radius: 4px;
+  padding: 2px 7px;
+}
+
+.factory-app .fx-cv-method {
+  font-size: 0.72rem;
+  color: var(--f-muted);
+}
+
+.factory-app .fx-cv-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.25rem;
+}
+
+.factory-app .fx-cv-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.factory-app .fx-cv-stat strong {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--f-text);
+  line-height: 1.1;
+}
+
+.factory-app .fx-cv-stat span {
+  font-size: 0.72rem;
+  color: var(--f-muted);
+}
+
+.factory-app .fx-cv-stat--green strong {
+  color: var(--f-green);
+}
+
+.factory-app .fx-cv-stat--blue strong {
+  color: #6fa0c8;
+}
+
+/* ── Staggered manifest box reveal ── */
+@keyframes fx-box-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.factory-app .fx-box-wrap {
+  animation: fx-box-in 0.28s ease both;
+}

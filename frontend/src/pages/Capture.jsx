@@ -10,12 +10,12 @@ import DestinationAnalysis from '../components/DestinationAnalysis.jsx'
 // DetectResponse / Piece / ColorGroup. The full response is kept in state even
 // though most fields are not shown, so the admin side can use them later.
 
-const STATUS_LINES = [
-  'Checking photo',
-  'Finding scrap edges',
-  'Grouping colors',
-  'Estimating pieces',
-  'Preparing pack list',
+const PIPELINE_STEPS = [
+  'Segmenting fabric boundaries',
+  'Identifying color clusters',
+  'Classifying material types',
+  'Estimating weights and yield',
+  'Building marketplace listings',
 ]
 const VISION_SERVER_PREF_KEY = 'reweave_use_continuous_vision_server'
 
@@ -31,7 +31,8 @@ export default function Capture() {
   const [packed, setPacked] = useState(() => new Set())
   const [expandedAnalysis, setExpandedAnalysis] = useState(() => new Set())
   const [finishedBatch, setFinishedBatch] = useState(null)
-  const [statusIdx, setStatusIdx] = useState(0)
+  const [activeStep, setActiveStep] = useState(0)
+  const [showOriginal, setShowOriginal] = useState(false)
   const [zoomOpen, setZoomOpen] = useState(false)
   const [useContinuousServer, setUseContinuousServer] = useState(savedContinuousServerPref)
 
@@ -59,13 +60,14 @@ export default function Capture() {
     localStorage.setItem(VISION_SERVER_PREF_KEY, useContinuousServer ? 'true' : 'false')
   }, [useContinuousServer])
 
-  // Cycle the status readout while we wait on the detect call.
+  // Advance pipeline steps while waiting on the detect call. Cap at the
+  // second-to-last step so the final step only completes when results arrive.
   useEffect(() => {
     if (stage !== 'processing') return
-    setStatusIdx(0)
+    setActiveStep(0)
     const timer = setInterval(() => {
-      setStatusIdx((i) => (i + 1) % STATUS_LINES.length)
-    }, 1500)
+      setActiveStep(i => Math.min(i + 1, PIPELINE_STEPS.length - 2))
+    }, 2200)
     return () => clearInterval(timer)
   }, [stage])
 
@@ -147,6 +149,7 @@ export default function Capture() {
     setError(null)
     setPacked(new Set())
     setFinishedBatch(null)
+    setShowOriginal(false)
     setZoomOpen(false)
     setStage(nextStage)
   }
@@ -267,15 +270,32 @@ export default function Capture() {
     body = (
       <section className="fx-stage fx-processing">
         <div className="fx-intro">
-          <span className="fx-eyebrow">Processing</span>
-          <h1 className="fx-title">Building pack list</h1>
+          <span className="fx-eyebrow">Reweave Vision Engine</span>
+          <h1 className="fx-title">Analyzing scraps</h1>
         </div>
 
-        <div className="fx-frame fx-frame--scan">
-          {previewUrl && <img src={previewUrl} alt="Your scrap pile" />}
-          <div className="fx-readout">
-            <span className="fx-readout-text">{STATUS_LINES[statusIdx]}</span>
+        {previewUrl && (
+          <div className="fx-frame fx-frame--scan">
+            <img src={previewUrl} alt="Your scrap pile" />
           </div>
+        )}
+
+        <div className="fx-pipeline">
+          {PIPELINE_STEPS.map((label, i) => {
+            const done = i < activeStep
+            const active = i === activeStep
+            return (
+              <div
+                key={i}
+                className={`fx-pipeline-step${done ? ' is-done' : ''}${active ? ' is-active' : ''}`}
+              >
+                <span className="fx-pipeline-icon">
+                  {done ? <IconCheck /> : active ? <IconSpinner /> : <IconDot />}
+                </span>
+                <span className="fx-pipeline-label">{label}</span>
+              </div>
+            )
+          })}
         </div>
 
         <div className="fx-bar-indeterminate">
@@ -298,8 +318,11 @@ export default function Capture() {
     body = (
       <section className="fx-stage fx-plan">
         <div className="fx-intro">
-          <span className="fx-eyebrow">Pack list</span>
+          <span className="fx-eyebrow">Pack list · Reweave Vision Engine</span>
           <h1 className="fx-title">Sort into boxes</h1>
+          <p className="fx-lead fx-lead--muted">
+            Factories sort scraps manually. Reweave does it in seconds.
+          </p>
         </div>
 
         {groups.length === 0 ? (
@@ -311,26 +334,50 @@ export default function Capture() {
           />
         ) : (
           <>
-            <button
-              type="button"
-              className="fx-frame fx-frame--plan"
-              onClick={() => annotated && setZoomOpen(true)}
-            >
-              {annotated ? (
-                <img src={annotated} alt="Annotated sorting plan" />
-              ) : (
-                <span className="fx-fallback">
-                  <img ref={imgRef} src={previewUrl} alt="Your scrap pile" />
-                  <canvas ref={canvasRef} className="fx-fallback-canvas" />
-                </span>
-              )}
+            <div className="fx-image-wrap">
+              <button
+                type="button"
+                className="fx-frame fx-frame--plan"
+                onClick={() => annotated && !showOriginal && setZoomOpen(true)}
+              >
+                {showOriginal ? (
+                  <img src={previewUrl} alt="Original photo" />
+                ) : annotated ? (
+                  <img src={annotated} alt="Annotated sorting plan" />
+                ) : (
+                  <span className="fx-fallback">
+                    <img ref={imgRef} src={previewUrl} alt="Your scrap pile" />
+                    <canvas ref={canvasRef} className="fx-fallback-canvas" />
+                  </span>
+                )}
+                {annotated && !showOriginal && (
+                  <span className="fx-zoom-hint">
+                    <IconExpand />
+                    View larger
+                  </span>
+                )}
+              </button>
               {annotated && (
-                <span className="fx-zoom-hint">
-                  <IconExpand />
-                  View larger
-                </span>
+                <div className="fx-image-toggle">
+                  <button
+                    type="button"
+                    className={`fx-image-toggle-btn${!showOriginal ? ' is-active' : ''}`}
+                    onClick={() => setShowOriginal(false)}
+                  >
+                    Annotated
+                  </button>
+                  <button
+                    type="button"
+                    className={`fx-image-toggle-btn${showOriginal ? ' is-active' : ''}`}
+                    onClick={() => setShowOriginal(true)}
+                  >
+                    Original
+                  </button>
+                </div>
               )}
-            </button>
+            </div>
+
+            <CvSummary result={result} />
 
             <div className="fx-progress" aria-label="Packing progress">
               <div className="fx-progress-copy">
@@ -358,7 +405,7 @@ export default function Capture() {
                 const chip = group.outline_color || group.color_hex
                 const count = group.piece_count
                 return (
-                  <div key={key} className="fx-box-wrap">
+                  <div key={key} className="fx-box-wrap" style={{ animationDelay: `${i * 0.08}s` }}>
                     <button
                       type="button"
                       className={`fx-box ${isPacked ? 'is-packed' : ''}`}
@@ -693,6 +740,74 @@ function IconAlert() {
       <path d="M12 4.5l8.5 15h-17z" />
       <path d="M12 10v4M12 17h.01" />
     </svg>
+  )
+}
+
+function IconSpinner() {
+  return (
+    <svg {...svgProps()} style={{ animation: 'fx-spin 0.9s linear infinite' }}>
+      <circle cx="12" cy="12" r="8" strokeDasharray="26 26" strokeDashoffset="0" />
+    </svg>
+  )
+}
+
+function IconDot() {
+  return (
+    <svg {...svgProps()}>
+      <circle cx="12" cy="12" r="2.5" fill="currentColor" stroke="none" />
+    </svg>
+  )
+}
+
+function CvSummary({ result }) {
+  if (!result) return null
+  const groups = result.groups || []
+  const pieces = result.pieces || []
+  const weightG = groups.reduce((s, g) => s + (Number(g.estimated_weight_g) || 0), 0)
+  const weightKg = weightG / 1000
+  const carbonKg = (weightKg * 2.1).toFixed(1)
+  const waterL = Math.round(weightKg * 2700)
+  const weightLabel = weightKg >= 1
+    ? `${weightKg >= 10 ? weightKg.toFixed(1) : weightKg.toFixed(2)} kg`
+    : weightG > 0 ? `${Math.round(weightG)} g` : null
+
+  return (
+    <div className="fx-cv-summary">
+      <div className="fx-cv-summary-head">
+        <span className="fx-cv-badge">Reweave Vision Engine</span>
+        {result.segmentation_method && (
+          <span className="fx-cv-method">{result.segmentation_method}</span>
+        )}
+      </div>
+      <div className="fx-cv-stats">
+        <div className="fx-cv-stat">
+          <strong>{pieces.length}</strong>
+          <span>pieces detected</span>
+        </div>
+        <div className="fx-cv-stat">
+          <strong>{groups.length}</strong>
+          <span>material groups</span>
+        </div>
+        {weightLabel && (
+          <div className="fx-cv-stat">
+            <strong>{weightLabel}</strong>
+            <span>est. weight</span>
+          </div>
+        )}
+        {weightKg > 0 && (
+          <div className="fx-cv-stat fx-cv-stat--green">
+            <strong>{carbonKg} kg CO₂</strong>
+            <span>diverted from landfill</span>
+          </div>
+        )}
+        {weightKg > 0 && (
+          <div className="fx-cv-stat fx-cv-stat--blue">
+            <strong>{waterL.toLocaleString()} L</strong>
+            <span>water saved</span>
+          </div>
+        )}
+      </div>
+    </div>
   )
 }
 
