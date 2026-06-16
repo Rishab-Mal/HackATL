@@ -29,14 +29,6 @@ export default function Dashboard() {
   }, [])
 
   const fabricImpact = useMemo(() => metrics?.fabric_impact || [], [metrics])
-  const impactScore = useMemo(() => {
-    if (!metrics) return 0
-    const weightScore = Math.min(40, metrics.total_weight_kg * 18)
-    const waterScore = Math.min(35, metrics.total_water_saved_l / 20)
-    const listingScore = Math.min(25, metrics.total_lots * 3)
-    return Math.round(weightScore + waterScore + listingScore)
-  }, [metrics])
-
   if (error) return <div className="error">{error}</div>
   if (!metrics) return <div className="dash-loading"><div className="dash-spinner" />Loading impact report...</div>
 
@@ -50,11 +42,6 @@ export default function Dashboard() {
             These numbers come from the same lots powering the admin dashboard, so water,
             carbon, energy, and diversion totals stay aligned with inventory.
           </p>
-        </div>
-        <div className="admin-impact-score">
-          <span>Circularity signal</span>
-          <strong>{impactScore}</strong>
-          <small>updates as scans create lots</small>
         </div>
       </section>
 
@@ -87,10 +74,6 @@ export default function Dashboard() {
           <div className="admin-impact-progress-track">
             <span style={{ width: `${Math.min(100, metrics.diversion_pct)}%` }} />
           </div>
-          <p>
-            The pilot target is intentionally small enough for a live hackathon demo. Even gram-scale
-            scans show credible impact because the page displays grams, liters, and cents cleanly.
-          </p>
         </div>
 
         <div className="admin-impact-equivalents">

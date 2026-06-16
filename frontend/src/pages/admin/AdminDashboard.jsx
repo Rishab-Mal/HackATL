@@ -77,7 +77,7 @@ export default function AdminDashboard() {
       <section className="admin-hero">
         <div className="admin-hero-copy">
           <span className="admin-eyebrow">Reweave admin command center</span>
-          <h1>Turn one table scan into inventory, impact, and action.</h1>
+          <h1>Turn factory scans into inventory, impact, and action.</h1>
           <p>
             This dashboard is built for the hackathon demo flow: scan a few fabric pieces,
             publish lots automatically, then show judges the evidence, business value, and
@@ -167,7 +167,7 @@ export default function AdminDashboard() {
         <div>
           <span className="admin-eyebrow">Impact preview</span>
           <h2>Environmental gains from the current inventory</h2>
-          <p>Scaled for grams, not tons, so the numbers still read cleanly after one small scan.</p>
+          <p>Scaled for scrap-level operations, so small batches and larger runs stay easy to compare.</p>
           <Link className="admin-impact-link" to="/admin/impact">Open impact report</Link>
         </div>
         <div className="admin-impact-metrics">
@@ -178,7 +178,7 @@ export default function AdminDashboard() {
       </section>
 
       <section className="admin-section admin-analytics">
-        <SectionTitle eyebrow="Short-horizon analytics" title="Works With One Scan" />
+        <SectionTitle eyebrow="Operational analytics" title="Inventory Movement Signals" />
         <div className="admin-chart-grid">
           <ChartCard title="Fabric mix by weight">
             <ResponsiveContainer width="100%" height={220}>

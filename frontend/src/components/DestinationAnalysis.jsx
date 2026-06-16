@@ -37,7 +37,6 @@ export default function DestinationAnalysis({ group }) {
   if (loading) {
     return (
       <div className="fx-destination fx-destination--status">
-        <span className="fx-destination-loader" aria-hidden="true" />
         <span>Analyzing best destination</span>
       </div>
     )
@@ -56,20 +55,13 @@ export default function DestinationAnalysis({ group }) {
   const {
     recommended,
     alternatives,
-    recommended_buyers,
     sale_probability_pct,
     expected_days_to_sale,
-    environmental_equivalents,
   } = data
 
   const optionList = alternatives || []
-  const buyerList = recommended_buyers || []
   const allOptions = [recommended, ...optionList]
   const maxScore = Math.max(...allOptions.map((o) => o.score), 1)
-  const isHighestImpact =
-    optionList.length > 0 &&
-    recommended.co2_saved_kg >= Math.max(...optionList.map((o) => o.co2_saved_kg))
-  const topBuyers = buyerList.slice(0, 2)
   const topAlternatives = optionList.slice(0, 2)
 
   return (
@@ -79,19 +71,12 @@ export default function DestinationAnalysis({ group }) {
           <span>Best destination</span>
           <h3>{recommended.name}</h3>
         </div>
-        <span className="fx-destination-score">
-          {isHighestImpact ? 'Impact' : 'Top pick'} {recommended.score}
-        </span>
       </div>
 
       <div className="fx-destination-metrics" aria-label="Destination metrics">
         <div>
           <span>Revenue</span>
           <strong>${recommended.revenue_usd.toFixed(2)}</strong>
-        </div>
-        <div>
-          <span>CO2 saved</span>
-          <strong>{recommended.co2_saved_kg} kg</strong>
         </div>
         <div>
           <span>Sale window</span>
@@ -103,13 +88,6 @@ export default function DestinationAnalysis({ group }) {
         <div className="fx-destination-pill">
           {sale_probability_pct}% sale probability
         </div>
-        {topBuyers.length > 0 && (
-          <div className="fx-destination-buyers">
-            {topBuyers.map((buyer) => (
-              <span key={buyer.name}>{buyer.name}</span>
-            ))}
-          </div>
-        )}
       </div>
 
       {topAlternatives.length > 0 && (
@@ -131,11 +109,6 @@ export default function DestinationAnalysis({ group }) {
         </div>
       )}
 
-      {environmental_equivalents && (
-        <p className="fx-destination-note">
-          Equivalent to {environmental_equivalents.car_miles} miles not driven.
-        </p>
-      )}
     </div>
   )
 }

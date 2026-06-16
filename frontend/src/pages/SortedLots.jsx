@@ -71,7 +71,6 @@ export default function SortedLots() {
         <div className="admin-inventory-total">
           <span>Live inventory value</span>
           <strong>{formatMoney(summary.liveValue)}</strong>
-          <small>{summary.available} market-ready lots</small>
         </div>
       </section>
 

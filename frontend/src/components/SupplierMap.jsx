@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
-import { formatImpactMass, formatMoney, formatWater, formatWeightKg } from '../utils/formatters.js'
+import { formatInputKg, formatImpactMass, formatMoney, formatWater, formatWeightKg, lotQuantityStep } from '../utils/formatters.js'
 import { useCart } from '../context/CartContext.jsx'
 import { getMe, saveMyLocation } from '../api.js'
 
@@ -10,22 +10,32 @@ const TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || ''
 
 // Default buyer position — NYC garment district, until the browser shares a real one
 const DEFAULT_BUYER = { lat: 40.7128, lng: -74.006 }
+const FACTORY_CLUSTER_RADIUS_KM = 1.0
 
 // Build the map's factories from the real origins stamped on lots at scan time.
 // Lots without a shared location simply do not appear, so there is no sample data.
 // Names come from reverse geocoding the coordinates (see the component), not from
 // anything hardcoded.
 function buildFactories(lots) {
-  const groups = new Map()
+  const groups = []
   for (const lot of lots) {
     if (typeof lot.origin_lat !== 'number' || typeof lot.origin_lng !== 'number') continue
-    const key = `${lot.origin_lat.toFixed(3)},${lot.origin_lng.toFixed(3)}`
-    if (!groups.has(key)) groups.set(key, { key, lat: lot.origin_lat, lng: lot.origin_lng, lots: [] })
-    groups.get(key).lots.push(lot)
+    const existing = groups.find((group) =>
+      haversineKm(group.lat, group.lng, lot.origin_lat, lot.origin_lng) <= FACTORY_CLUSTER_RADIUS_KM
+    )
+
+    if (existing) {
+      const nextCount = existing.lots.length + 1
+      existing.lat = (existing.lat * existing.lots.length + lot.origin_lat) / nextCount
+      existing.lng = (existing.lng * existing.lots.length + lot.origin_lng) / nextCount
+      existing.lots.push(lot)
+    } else {
+      groups.push({ lat: lot.origin_lat, lng: lot.origin_lng, lots: [lot] })
+    }
   }
-  return [...groups.values()].map((g, i) => ({
+  return groups.map((g, i) => ({
     id: i,
-    key: g.key,
+    key: `${g.lat.toFixed(3)},${g.lng.toFixed(3)}`,
     lat: g.lat,
     lng: g.lng,
     lots: g.lots,
@@ -90,7 +100,8 @@ export default function SupplierMap({ lots }) {
   const [locating, setLocating] = useState(false)
   const [located, setLocated] = useState(false)
   const [placeNames, setPlaceNames] = useState({})
-  const { cart, addToCart, removeFromCart } = useCart()
+  const { cart, addToCart, updateQty, removeFromCart } = useCart()
+  const [draftQty, setDraftQty] = useState({})
 
   // Real origins captured from the factory floor. One scan with a shared
   // location gives one populated pin, so a single demo run already looks right.
@@ -345,6 +356,19 @@ export default function SupplierMap({ lots }) {
     )
   }
 
+  function selectedQty(lot) {
+    return cart[lot.id]?.qty ?? draftQty[lot.id] ?? defaultQty(lot.weight_kg)
+  }
+
+  function setQty(lot, value) {
+    const next = clampQty(Number(value), lot.weight_kg)
+    setDraftQty((prev) => ({ ...prev, [lot.id]: next }))
+    if (cart[lot.id]) {
+      if (next > 0) updateQty(lot.id, next)
+      else removeFromCart(lot.id)
+    }
+  }
+
   return (
     <div className="supplier-map-layout">
       {/* Map canvas */}
@@ -459,17 +483,29 @@ export default function SupplierMap({ lots }) {
               ) : (
                 sel.lots.map(lot => {
                   const inCart = !!cart[lot.id]
+                  const img = firstImage(lot)
+                  const qty = selectedQty(lot)
+                  const step = lotQuantityStep(lot.weight_kg)
+                  const gramScale = lot.weight_kg < 1
+                  const inputStep = gramScale ? step * 1000 : step
+                  const inputMax = gramScale ? lot.weight_kg * 1000 : lot.weight_kg
+                  const inputValue = gramScale ? formatInputGrams(qty) : formatInputKg(qty)
+                  const selectedPrice = proratedPrice(lot, qty)
                   return (
                     <div
                       className={`map-lot-card${inCart ? ' map-lot-card--incart' : ''}`}
                       key={lot.id}
                     >
-                      <div className="map-lot-swatch" style={{ background: lot.color_hex }} />
+                      {img ? (
+                        <img className="map-lot-thumb" src={img} alt={`${lot.name} fabric`} />
+                      ) : (
+                        <div className="map-lot-thumb map-lot-thumb--swatch" style={{ background: lot.color_hex }} />
+                      )}
                       <div className="map-lot-info">
                         <div className="map-lot-type">{lot.fabric_type}</div>
                         <div className="map-lot-name">{lot.name}</div>
                         <div className="map-lot-price-row">
-                          <span className="map-lot-price">{formatMoney(lot.current_price_usd)}</span>
+                          <span className="map-lot-price">{formatMoney(selectedPrice)}</span>
                           {lot.price_decay_pct > 0 && (
                             <span className="map-lot-badge">−{lot.price_decay_pct}%</span>
                           )}
@@ -478,15 +514,39 @@ export default function SupplierMap({ lots }) {
                         <div className="map-lot-impact">
                           {formatImpactMass(lot.carbon_saved_kg)} CO₂ · {formatWater(lot.water_saved_l)} water
                         </div>
+                        <div className="map-lot-qty">
+                          <input
+                            type="range"
+                            min={0}
+                            max={lot.weight_kg}
+                            step={step}
+                            value={qty}
+                            onChange={e => setQty(lot, e.target.value)}
+                            aria-label={`Quantity for ${lot.name}`}
+                          />
+                          <div className="map-lot-qty-field">
+                            <input
+                              type="number"
+                              min={0}
+                              max={inputMax}
+                              step={inputStep}
+                              value={inputValue}
+                              onChange={e => setQty(lot, gramScale ? Number(e.target.value) / 1000 : e.target.value)}
+                              aria-label={`Quantity in ${gramScale ? 'grams' : 'kilograms'} for ${lot.name}`}
+                            />
+                            <span>{gramScale ? 'g' : 'kg'}</span>
+                          </div>
+                        </div>
                       </div>
                       <button
                         className={`map-lot-btn${inCart ? ' map-lot-btn--added' : ''}`}
                         onClick={() =>
-                          inCart ? removeFromCart(lot.id) : addToCart(lot, null, lot.weight_kg)
+                          inCart ? removeFromCart(lot.id) : addToCart(lot, null, qty)
                         }
+                        disabled={!inCart && qty <= 0}
                         title={inCart ? 'Remove from order' : 'Add to order'}
                       >
-                        {inCart ? '✓' : '+'}
+                        {inCart ? 'Remove' : 'Add'}
                       </button>
                     </div>
                   )
@@ -498,4 +558,49 @@ export default function SupplierMap({ lots }) {
       </div>
     </div>
   )
+}
+
+function firstImage(lot) {
+  const imgs = normalizePieceImages(lot?.piece_images)
+  return imgs[0]?.src || null
+}
+
+function normalizePieceImages(images) {
+  if (!Array.isArray(images)) return []
+  return images
+    .map((img) => {
+      if (typeof img === 'string') return { src: img }
+      if (img && typeof img === 'object') {
+        const src = img.src || img.url || img.crop_data_url || img.data_url
+        if (src) return { ...img, src }
+      }
+      return null
+    })
+    .filter(Boolean)
+}
+
+function defaultQty(weightKg) {
+  const weight = Number(weightKg) || 0
+  if (weight <= 0) return 0
+  if (weight <= 0.25) return weight
+  return Number(Math.min(weight, Math.max(0.1, weight * 0.5)).toFixed(3))
+}
+
+function clampQty(value, max) {
+  const maximum = Number(max) || 0
+  if (!Number.isFinite(value)) return 0
+  return Number(Math.min(Math.max(value, 0), maximum).toFixed(3))
+}
+
+function proratedPrice(lot, qty) {
+  const weight = Number(lot.weight_kg) || 0
+  const price = Number(lot.current_price_usd) || 0
+  const selected = Number(qty) || 0
+  if (weight <= 0 || selected >= weight) return price
+  return Number((price * (selected / weight)).toFixed(4))
+}
+
+function formatInputGrams(kg) {
+  const grams = (Number(kg) || 0) * 1000
+  return grams < 10 ? grams.toFixed(1).replace(/\.?0+$/, '') : String(Math.round(grams))
 }

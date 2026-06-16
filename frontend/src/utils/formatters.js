@@ -54,6 +54,20 @@ export function formatInputKg(value) {
   return trimNumber(kg, 2)
 }
 
+export function formatDateEastern(iso, options = {}) {
+  if (!iso) return 'recently'
+  const raw = String(iso)
+  const date = new Date(/[zZ+]|-\d\d:\d\d$/.test(raw) ? raw : `${raw}Z`)
+  if (Number.isNaN(date.getTime())) return 'recently'
+  return date.toLocaleString('en-US', {
+    timeZone: 'America/New_York',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    ...options,
+  })
+}
+
 export function lotQuantityStep(weightKg) {
   const weight = Number(weightKg) || 0
   if (weight <= 0) return 0.001

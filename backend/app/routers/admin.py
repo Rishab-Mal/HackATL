@@ -2,6 +2,7 @@
 
 from collections import defaultdict
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import text
@@ -73,7 +74,9 @@ def _status_counts(lots: list[models.Lot]) -> dict:
 
 
 def _run_label(created_at: datetime) -> str:
-    return created_at.strftime("%b %-d, %-I:%M %p")
+    base = created_at if created_at.tzinfo else created_at.replace(tzinfo=ZoneInfo("UTC"))
+    eastern = base.astimezone(ZoneInfo("America/New_York"))
+    return eastern.strftime("%b %-d, %-I:%M %p")
 
 
 @router.get("/metrics")

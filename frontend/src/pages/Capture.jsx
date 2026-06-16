@@ -274,7 +274,6 @@ export default function Capture() {
         <div className="fx-frame fx-frame--scan">
           {previewUrl && <img src={previewUrl} alt="Your scrap pile" />}
           <div className="fx-readout">
-            <span className="fx-readout-dot" />
             <span className="fx-readout-text">{STATUS_LINES[statusIdx]}</span>
           </div>
         </div>

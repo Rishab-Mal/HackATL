@@ -1,13 +1,7 @@
 import { useEffect, useState } from 'react'
 import { getLots } from '../../api.js'
 import { useAuth } from '../../context/AuthContext.jsx'
-import { formatImpactMass, formatMoney, formatWater, formatWeightKg } from '../../utils/formatters.js'
-
-function fmtDate(iso) {
-  if (!iso) return 'recently'
-  const d = new Date(iso + (String(iso).endsWith('Z') ? '' : 'Z'))
-  return isNaN(d) ? 'recently' : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-}
+import { formatDateEastern, formatImpactMass, formatMoney, formatWater, formatWeightKg } from '../../utils/formatters.js'
 
 function firstImage(order) {
   const imgs = Array.isArray(order.piece_images) ? order.piece_images : []
@@ -161,8 +155,7 @@ export default function BuyerOrders() {
                     </div>
 
                     <div className="order-card-footer">
-                      <span className="order-card-date">Claimed {fmtDate(order.claimed_at)}</span>
-                      <span className="order-card-origin">Carter's Circular Supply Pilot · Atlanta, GA</span>
+                      <span className="order-card-date">Claimed {formatDateEastern(order.claimed_at)}</span>
                     </div>
                   </div>
                 </div>
