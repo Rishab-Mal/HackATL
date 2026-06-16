@@ -1,0 +1,386 @@
+REWEAVE (formerly "fibr" / Scrap Sorter) — CURRENT STATE
+=========================================================
+(Last updated 2026-06-15, after merging rishabBranch's "AI Material
+Destination Engine + Windows SAM tempfile fix" (14a1749) into main, which had
+independently picked up the Reweave rebrand (563c4f1, ee6f77e) and a
+Supabase/Postgres migration (5fad6a4). The merge is at e01f1e3; both `main`
+and `rishabBranch` are at e01f1e3 and pushed to origin — branches are in
+sync.)
+
+WHAT THE APP IS
+---------------
+A B2B platform, now branded "Reweave": factories photograph piles of fabric
+scraps, computer vision groups the pieces by color/material, those groups
+become sellable "lots" priced automatically, and a marketplace connects the
+lots to recyclers/makers who can "claim" them. An admin dashboard shows
+aggregate environmental impact (CO2/water/energy saved, Carter's pilot
+program stats) and P&L. NEW this update: each detected fabric group can also
+get an AI-generated "destination analysis" — a recommendation for the best
+reuse pathway (upcycle, fiber reclamation, insulation, wiping cloths,
+landfill), ranked alternatives, matched buyers, sale probability, and
+environmental equivalents.
+
+The app is a login-gated, role-based product with three portals (factory,
+admin, buyer) plus a public marketing landing page for logged-out visitors.
+
+Stack: FastAPI backend (backend/), React + Vite frontend (frontend/, Tailwind
+CSS + @tremor/react for charts/UI), single dev server each, /api/* proxied
+from frontend to backend:8000.
+
+DATABASE — MAJOR CHANGE: now Postgres via Supabase, not SQLite.
+  - backend/app/database.py reads DATABASE_URL from backend/.env
+    (postgresql://postgres.<ref>:<password>@<pooler-host>:6543/postgres).
+    If unset, falls back to sqlite:///./scraps.db so the app still boots for
+    offline dev. Postgres connections use pool_pre_ping=True so dropped
+    pooler connections are recycled instead of erroring.
+  - init_db() / Base.metadata.create_all() is now effectively a no-op against
+    the managed Supabase schema (tables are created/owned by a Supabase
+    migration) — it only matters for the SQLite fallback.
+  - seed.py was REWRITTEN: it is now idempotent (no-op if any User rows
+    exist) and seeds ONLY the 3 demo logins (factory@demo.com/factory123,
+    admin@demo.com/admin123, buyer@demo.com/buyer123) + the 8 buyer profiles.
+    There is NO sample lot/inventory data anymore — every lot must come from
+    a real camera scan, so the marketplace and admin metrics start empty and
+    fill in live during the demo.
+  - FactoryRecord model, routers/factory.py, and all /api/factory-records*
+    endpoints have been REMOVED ENTIRELY (previously an unused hand-entry
+    concept). models.py now only defines Lot, User, Buyer.
+
+
+BACKEND — WHAT EXISTS
+---------------------
+
+models.py (SQLAlchemy tables) — now just 3 tables:
+  - Lot: id, name, description, fabric_type, composition, color_name,
+    color_hex, piece_count, weight_kg, price_usd, carbon_saved_kg,
+    water_saved_l, status ("available"|"claimed"|"unlisted"), claimed_by
+    (free-text string), claimed_at, created_at.
+  - User: id, email (unique), password_hash (sha256), role
+    ("factory"|"admin"|"buyer"), name.
+  - Buyer: id, name, type ("recycler"|"maker"), location, description,
+    interested_materials (comma-separated string).
+
+routers/vision.py + vision/ package (CV):
+  - POST /api/vision/detect — image upload -> SAM2-via-Replicate
+    segmentation + OpenCV measurement/color/annotation + OpenRouter LLM
+    material classification. Returns pieces, color groups, annotated image,
+    ArUco scale reference, discarded objects, warnings.
+  - FIXED (committed in 14a1749): backend/app/vision/replicate_sam.py's
+    segment_with_replicate() previously used
+    `tempfile.NamedTemporaryFile()` and reopened the same path while the
+    handle was still held — on Windows this raised an unhandled
+    PermissionError, bypassing the router's `except ValueError` handler and
+    producing a raw 500 on every capture. Now: encodes to JPEG (q92, ~5-10x
+    smaller upload than PNG), writes via
+    `tempfile.NamedTemporaryFile(suffix=".jpg", delete=False)`, closes the
+    handle, reopens by path for the Replicate call, and cleans up with
+    `os.unlink` in a `finally` block.
+  - KNOWN-NOT-FIXED: warmup_replicate() (best-effort container warmup, added
+    by main's migration, lines ~59-88) still uses the OLD
+    `with tempfile.NamedTemporaryFile(...) as tmp: tmp.flush(); open(tmp.name)`
+    pattern inside the same `with` block — same Windows PermissionError
+    pattern as the original bug. It's wrapped in a broad
+    `try/except Exception: return False`, so it fails silently rather than
+    crashing anything; only matters if warmup needs to actually work on
+    Windows.
+
+routers/lots.py — unchanged behavior:
+  - POST /api/lots — create a lot, auto-prices via pricing.py, computes
+    carbon_saved_kg / water_saved_l from weight * constants.
+  - GET /api/lots — list with filters (status, fabric_type, color_name,
+    min_price, max_price); each lot enriched with current_price_usd,
+    price_decay_pct, days_listed (computed on read).
+  - GET /api/lots/filters, GET /api/lots/{id}.
+  - POST /api/lots/{id}/claim — body { buyer_name }. One-shot status flip to
+    "claimed" + free-text claimed_by — no order record, no quantity.
+  - PATCH /api/lots/{id}/delist ("available"->"unlisted") and
+    PATCH /api/lots/{id}/relist ("unlisted"->"available"), used by
+    SortedLots.jsx's "Remove from Market" / "Re-list on Market" buttons.
+
+routers/marketplace.py — unchanged: GET/POST /api/marketplace/buyers,
+  GET /api/marketplace/activity, GET /api/impact (impact_router, still
+  exists but the frontend now calls /api/admin/metrics instead — likely
+  dead from the frontend's perspective).
+
+routers/auth.py — unchanged: POST /api/auth/login, GET /api/auth/me. JWT
+  (HS256, 8h expiry).
+
+routers/admin.py:
+  - GET /api/admin/metrics — STILL HAS NO AUTH (only `Depends(get_db)`) —
+    longstanding gap, exposes full P&L/inventory/activity data to anyone.
+    Fields unchanged from prior update: revenue, profit, inventory_value,
+    claim/decay stats, fabric_impact, impact_trend, revenue_trend,
+    activity_feed, decay_alerts, carters_* pilot stats, energy/diversion
+    metrics, full equivalents set (trees, car_miles, flights, phones,
+    showers, bathtubs, bottles, homes).
+  - NEW: POST /api/admin/reset-demo — wipes the entire `lots` table (and, on
+    Postgres only, best-effort restarts the id sequence back to 1) so a demo
+    can be replayed from a clean slate without touching logins or the buyer
+    catalog. Requires auth (`get_current_user`); allowed for role
+    "factory" OR "admin" (triggered from the factory portal header). Wired
+    to frontend via api.js's `resetDemoData()`.
+
+routers/destinations.py (NEW, this update):
+  - `APIRouter(prefix="/api/destinations", tags=["destinations"])`
+  - POST /api/destinations/analyze — body is DestinationAnalysisRequest
+    (fabric_type, composition, color_name, weight_kg, material_family),
+    response is DestinationAnalysis. Delegates to
+    destinations.analyze_destinations(...).
+
+destinations.py (NEW) — AI Material Destination Engine, the core of this
+  update. Pure analysis layer, no DB writes, no lot mutation:
+  - Catalog (DESTINATIONS dict) keyed by fabric category
+    (denim_cotton / synthetic / wool_silk / general), each entry
+    (name, revenue_multiplier, co2_multiplier) relative to a computed base
+    price/CO2. _category_for_fabric() keyword-matches fabric_type into a
+    category (defaults to "general"). Every category's list ends with
+    "Landfill Disposal" at (0.0, 0.0).
+  - Scoring: base_price = pricing.calculate_base_price(...);
+    base_co2 = weight_kg * CARBON_PER_KG. For each catalog entry, compute
+    revenue_usd and co2_saved_kg, normalize both to 0-100 across the
+    option set, then
+    `score = 0.4*revenue_norm + 0.3*co2_norm + 0.2*demand + 0.1*demand`
+    (demand_score is 0 for Landfill, so it always scores lowest). Sorted
+    descending; first = `recommended`, rest = `alternatives`.
+  - Buyer matching (_match_buyers): builds a keyword set from
+    {fabric_type, material_family, color_name}, intersects with each
+    Buyer.interested_materials (comma string, same parsing pattern as
+    schemas.BuyerOut.from_orm_obj). match_pct = min(99, 70 + overlap*15),
+    top 3 returned as recommended_buyers. demand_score = min(100,
+    num_matching_buyers * 33) — feeds the scoring formula above.
+  - LLM flavor text (_llm_destination_names): if OPENROUTER_API_KEY is set,
+    one OpenRouter chat-completions call (urllib, same low-level pattern as
+    vision/material_llm.py) asks for friendlier 3-6 word names for the
+    catalog's destination names, same order/count enforced. On ANY
+    exception (network, JSON, key errors) or missing API key, returns None
+    and the heuristic catalog names are used verbatim — this never affects
+    scoring/ordering, only display names.
+  - sale_probability_pct = min(98, 60 + round(demand_score*0.35));
+    expected_days_to_sale = round(1 + (100-demand_score)/100*6, 1).
+  - environmental_equivalents (schemas.ImpactEquivalents) computed from the
+    RECOMMENDED option's co2_saved_kg and a derived water_saved_l
+    (weight_kg * WATER_PER_KG * (recommended_co2/base_co2)), using the same
+    CO2_KG_PER_CAR_MILE / CO2_KG_PER_PHONE_CHARGE / WATER_L_PER_PLASTIC_BOTTLE
+    / WATER_L_PER_SHOWER constants as /api/impact.
+  - landfill_co2_saved_kg is also returned separately (always 0, since
+    Landfill's co2_multiplier is 0) for "equivalent to doing nothing"
+    framing in the UI.
+
+schemas.py — added (after ImpactSummary):
+  - DestinationOption {name, revenue_usd, co2_saved_kg, score}
+  - BuyerMatch {name, match_pct}
+  - DestinationAnalysisRequest {fabric_type, composition, color_name,
+    weight_kg, material_family}
+  - DestinationAnalysis {recommended, alternatives, recommended_buyers,
+    sale_probability_pct, expected_days_to_sale, environmental_equivalents,
+    landfill_co2_saved_kg}
+
+pricing.py / constants.py — unchanged (fabric base $/kg * purity/color/
+  weight/piece-count multipliers; exponential decay after 7-day grace,
+  1.5%/day, 35% floor; CARBON_PER_KG, WATER_PER_KG, CO2_KG_PER_CAR_MILE,
+  CO2_KG_PER_PHONE_CHARGE, WATER_L_PER_PLASTIC_BOTTLE, WATER_L_PER_SHOWER).
+  destinations.py imports and reuses both directly.
+
+main.py — routers wired: vision, lots, marketplace (+impact_router), chat,
+  auth, admin, destinations. App title is now "Reweave API". (The old
+  `factory` router import is gone since routers/factory.py was deleted.)
+
+
+FRONTEND — WHAT EXISTS
+-----------------------
+
+REBRAND: "fibr" -> "Reweave" throughout.
+  - components/FibrMark.jsx (FibrBadge/FibrIcon/FibrWordmark) was REPLACED by
+    components/ReweaveMark.jsx, which exports a single `ReweaveLogo`
+    component (variant="full"|"mark", `light` prop for a light-on-dark
+    version) backed by real logo image assets in frontend/src/assets/
+    (reweave-full-logo-trimmed.png, reweave-full-logo-light.png,
+    reweave-mark-logo-trimmed.png). ReweaveBadge/ReweaveIcon/ReweaveWordmark
+    are thin aliases over ReweaveLogo for call-site compatibility.
+  - App.jsx and LandingPage.jsx now import/use `ReweaveLogo` (top nav,
+    sign-in modal, hero, footer). All visible "fibr"/"Fibr" copy has been
+    replaced with "Reweave" (e.g. LandingPage's hero/footer/testimonial
+    text now says "Reweave").
+  - localStorage JWT key renamed scrap_token -> reweave_token (api.js,
+    AuthContext.jsx, AdminDashboard.jsx, Dashboard.jsx all read/write
+    `reweave_token` consistently).
+
+Tailwind CSS + @tremor/react remain wired in (tailwind.config.js,
+postcss.config.js, src/tailwind.css), preflight disabled. The dark factory
+theme uses `--f-*` CSS custom properties in index.css (--f-bg: #101214,
+--f-surface: #171a1d, --f-line: #2a3035, --f-text: #f0eee8,
+--f-muted: #a7a29a, --f-green: #7fa06f, etc.) — the new
+DestinationAnalysis.jsx component matches this via Tailwind arbitrary-value
+classes (bg-[#131618], border-[#2a3035], text-[#a7a29a], text-[#7fa06f]...).
+
+Routing (App.jsx) — unchanged structurally from the last update:
+  - "/" and "/login" render LandingPage.jsx when logged out (sign-in is a
+    modal with one-click demo-account fill buttons); redirect to /{role}
+    when logged in.
+  - PortalNav: "Scan"->"Capture", "Bin Feed"->"Live Bins",
+    "Dashboard"->"Operations"; includes ReweaveLogo branding, CartButton
+    (buyer role), and a global success-message banner via
+    CartContext.lastSuccess.
+  - CartProvider (context/CartContext.jsx) wraps the whole app; addToCart /
+    updateQty / removeFromCart / clearCart / checkout(...) shared by
+    Marketplace.jsx and BuyerMarketplace.jsx. checkout() still calls
+    claimLot(lot.id, buyerName) per cart item with NO quantity — the `qty`
+    shown in the cart UI ("X kg in order") still has no effect on the
+    backend claim (whole lot is always claimed). Unchanged gap, carried
+    over.
+
+Factory portal (role=factory):
+  - "/factory" -> pages/Capture.jsx — upload -> detect -> color groups ->
+    auto-list as lots, now reliable on Windows thanks to the
+    replicate_sam.py fix. NEW this update: each detected color-group "box"
+    in the pack manifest now has an expandable "AI destination analysis"
+    toggle:
+    - Capture.jsx imports `ReweaveLogo` (from ReweaveMark.jsx) and
+      `DestinationAnalysis` (new component), adds `expandedAnalysis` state
+      + `toggleAnalysis()`, and a small `IconChevron()` icon component.
+    - Each manifest row is wrapped in `<div className="fx-box-wrap">` with a
+      `<button className="fx-analysis-toggle">` (chevron rotates via
+      `.is-open` class, styled in index.css) that toggles visibility of
+      `<DestinationAnalysis group={group} />` below the row.
+    - DestinationAnalysis is lazy-mounted: it only calls
+      POST /api/destinations/analyze (via api.js's analyzeDestinations())
+      when its toggle is expanded, so N manifest groups don't fire N API
+      calls on page load.
+    - DestinationAnalysis.jsx renders: recommended destination name +
+      projected revenue + CO2 saved + score badge ("Highest Impact" if its
+      co2_saved_kg is the max among alternatives, else "Top pick"); a
+      ranked list of ALL options (recommended + alternatives, including
+      Landfill) as horizontal score bars with revenue/CO2/score; a
+      "Recommended buyers" list with match %; sale probability + expected
+      days to sale; and an "Equivalent to N miles not driven, N showers
+      saved, N phone charges avoided" line from environmental_equivalents.
+      Loading/error states are simple inline text, no extra deps.
+  - "/factory/bins" -> pages/factory/BinFeed.jsx — unchanged, still a
+    simulated/animated bin-routing demo over /api/lots data.
+  - Factory header now also has a "reset demo" control (calls
+    resetDemoData() -> POST /api/admin/reset-demo) — wipes all lots so a
+    pitch run can start clean. Allowed for factory or admin roles.
+
+Admin portal (role=admin):
+  - "/admin" -> pages/admin/AdminDashboard.jsx — unchanged from prior
+    update's Tremor rebuild (diversion progress bar, Carter's Pilot card,
+    revenue/profit/inventory cards, revenue trend + sell-through + fabric
+    revenue charts, Recent Sales / Price Decay Alerts lists, environmental
+    impact section with 8-card equivalency grid + 30-day CO2 trend +
+    CO2-by-fabric chart, Top Buyers, Fabric Inventory Breakdown). Still reads
+    from the now-unauthenticated /api/admin/metrics — unchanged gap. Now
+    that seed data starts empty, most of these widgets will show zeros/empty
+    states until real scans happen during a demo — worth a quick check that
+    empty states render cleanly (no NaN%, no empty-array chart crashes).
+  - "/admin/lots" -> pages/SortedLots.jsx — unchanged: status filter
+    (available/unlisted/claimed), working Delist/Relist buttons via the
+    PATCH endpoints, per-lot in-flight locking, "Claimed by {claimed_by}"
+    read-only for claimed lots.
+  - "/admin/impact" -> pages/Dashboard.jsx — unchanged: calls
+    /api/admin/metrics, 30-day CO2 trend, 8-card equivalency grid,
+    fabric-impact bar chart. /api/impact endpoint still exists server-side
+    but is likely unused by the frontend now.
+
+Buyer portal (role=buyer):
+  - "/buyer" -> pages/buyer/BuyerMarketplace.jsx — unchanged: uses shared
+    CartContext, qty slider -> addToCart/updateQty, "X kg in order" shown at
+    checkout (claimLot still ignores qty — see CartContext gap above).
+  - "/buyer/marketplace" -> pages/Marketplace.jsx — unchanged: "assign to a
+    Buyer profile" flow via dropdown + shared cart/checkout.
+  - Both pages still represent two different "claim a lot" mental models
+    (self-as-buyer vs assign-to-a-profile) sharing one cart/checkout UI.
+    Neither uses interested_materials for recommendations — though
+    interested_materials IS now used by the new destination engine's buyer
+    matching (factory-side only).
+
+components/:
+  - ReweaveMark.jsx (NEW, replaces FibrMark.jsx) — see rebrand section.
+  - DestinationAnalysis.jsx (NEW) — see Factory portal section.
+  - CartButton / CheckoutPanel (in App.jsx) — unchanged, buyer-role-gated.
+  - LotFilters.jsx, ActivityFeed.jsx, CarterSpotlight.jsx — unchanged.
+    CarterSpotlight is still a hardcoded case-study component even though
+    live carters_* metrics exist via /api/admin/metrics — still an
+    opportunity, not yet done.
+  - ErrorBoundary.jsx, ChatBot.jsx — unchanged (ChatBot still has no access
+    to live lots/buyers/impact/admin/destinations data).
+
+api.js — request() now reads the JWT from localStorage key `reweave_token`
+  (renamed from `scrap_token`). Functions: detectScrap, getLots,
+  getLotFilterOptions, createLot, getBuyers, getActivity, claimLot,
+  getImpact, delistLot, relistLot, resetDemoData (POST /admin/reset-demo),
+  and NEW analyzeDestinations(payload) (POST /destinations/analyze).
+
+
+KNOWN GAPS / "NOT REAL YET" (excluding CV)
+--------------------------------------------
+RESOLVED in this update:
+  - The Capture flow's generic 500-crash-on-every-photo bug (Windows
+    tempfile PermissionError in replicate_sam.py's segment_with_replicate)
+    is fixed and COMMITTED (was previously only a local uncommitted fix).
+  - Factories now get an actionable next step per scrap group: the AI
+    Destination Analysis (recommended reuse pathway, ranked alternatives
+    including landfill for contrast, matched buyers, sale probability/time,
+    environmental equivalents) — directly extends the "AI pricing" story
+    into "AI recommends the best next life for this scrap."
+  - Demo can be reset cleanly mid-pitch via the new
+    POST /api/admin/reset-demo (factory or admin), without touching logins
+    or the buyer catalog — useful since seed data is now empty by design.
+
+STILL OPEN (carried over from before):
+  1. /api/admin/metrics and /api/impact still sum carbon/water/weight across
+     ALL lots regardless of status — overstates what's actually been
+     diverted/sold. (destinations.py's per-group equivalents are NOT
+     affected by this — they're computed fresh per analysis.)
+  2. "Claim" is still a one-shot status flip + free-text buyer_name string;
+     no order/claim history table; claimLot(lotId, buyerName) takes no qty
+     even though the cart tracks one.
+  3. ChatBot still has no access to live app data (lots, buyers, impact, or
+     the new destination analysis).
+  4. /api/admin/metrics STILL has zero authentication/authorization, and
+     exposes the full P&L/decay/Carter's pilot data to anyone.
+  5. BinFeed is still a fully simulated/animated demo, not connected to real
+     sorting hardware or a live detection feed.
+  6. User accounts are still single shared demo logins per role; Buyer
+     "marketplace profiles" remain disconnected from User accounts.
+  7. CartContext.checkout() still claims whole lots regardless of the qty
+     selected in BuyerMarketplace.
+  8. LandingPage.jsx headline stats (2,400+ kg diverted, 18 verified buyers,
+     94% sell-through, $12K+ revenue, Carter's pilot numbers) are likely
+     still hardcoded marketing copy rather than pulled from
+     /api/admin/metrics — now even more misleading since seed data starts
+     EMPTY (a fresh demo run would show 0 everywhere on admin/buyer screens
+     while the landing page still claims "2,400+ kg diverted").
+  9. warmup_replicate() in replicate_sam.py still has the old
+     Windows-unsafe tempfile pattern (silently swallowed by its broad
+     except — see backend section).
+
+NEW from this update:
+ 10. destinations.py's LLM flavor-text call (_llm_destination_names) is a
+     SECOND OpenRouter call layered on top of the vision pipeline's existing
+     LLM material classification — worth keeping an eye on OpenRouter
+     latency/cost if many manifest boxes are expanded during a live demo
+     (each expansion = 1 destinations.analyze call = up to 1 LLM call).
+ 11. With seed data now empty, AdminDashboard/Dashboard/LandingPage trust
+     percentages, decay alerts, and revenue charts should be spot-checked
+     for "0 lots" / empty-array edge cases (division by zero, NaN%, empty
+     chart rendering) before a live pitch — not yet verified this update.
+
+Discussed-but-not-started ideas (still relevant): split impact into
+"realized" vs "potential", ground the chatbot in live data via tool calls
+(including the new destination analysis), real partial-quantity
+claims/order records, add auth to /api/admin/metrics, wire LandingPage stats
+to /api/admin/metrics, make CarterSpotlight pull live carters_* data.
+
+
+GIT STATE
+---------
+main and rishabBranch are both at e01f1e3 (merge commit), pushed to origin —
+fully in sync. Recent history on main:
+  e01f1e3 Merge branch 'rishabBranch'
+  14a1749 Add AI Material Destination Engine and fix Windows SAM tempfile crash
+  ee6f77e Integrate Reweave logo assets
+  563c4f1 Rename product to Reweave
+  76ed641 Add demo reset control
+  5fad6a4 Move backend onto Supabase (Postgres), drop sample data
+  85a0299 Improve vision warmup and ngrok dev config
+  73963bc Merge alysbranch — fibr landing page, brand identity, lot delist/relist
