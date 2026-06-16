@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from .. import models, schemas
 from ..constants import CARBON_PER_KG, WATER_PER_KG
-from ..database import get_db
+from ..database import engine, get_db
 from ..pricing import calculate_base_price, current_price, decay_pct, days_listed
 
 router = APIRouter(prefix="/api/lots", tags=["lots"])
@@ -195,6 +195,7 @@ def list_lots(
     claimed_by: Optional[str] = Query(default=None),
     min_price: Optional[float] = Query(default=None),
     max_price: Optional[float] = Query(default=None),
+    q: Optional[str] = Query(default=None),
     db: Session = Depends(get_db),
 ):
     query = db.query(models.Lot)
@@ -210,6 +211,33 @@ def list_lots(
         query = query.filter(models.Lot.price_usd >= min_price)
     if max_price is not None:
         query = query.filter(models.Lot.price_usd <= max_price)
+    if q and q.strip():
+        term = q.strip()
+        if engine.dialect.name == "postgresql":
+            search_vec = func.to_tsvector(
+                "english",
+                func.concat_ws(
+                    " ",
+                    func.coalesce(models.Lot.name, ""),
+                    func.coalesce(models.Lot.fabric_type, ""),
+                    func.coalesce(models.Lot.color_name, ""),
+                    func.coalesce(models.Lot.composition, ""),
+                    func.coalesce(models.Lot.description, ""),
+                ),
+            )
+            tsquery = func.websearch_to_tsquery("english", term)
+            query = query.filter(search_vec.op("@@")(tsquery))
+        else:
+            pattern = f"%{term}%"
+            query = query.filter(
+                or_(
+                    models.Lot.name.ilike(pattern),
+                    models.Lot.fabric_type.ilike(pattern),
+                    models.Lot.color_name.ilike(pattern),
+                    models.Lot.composition.ilike(pattern),
+                    models.Lot.description.ilike(pattern),
+                )
+            )
     return [_enrich(lot) for lot in query.order_by(models.Lot.created_at.desc()).all()]
 
 

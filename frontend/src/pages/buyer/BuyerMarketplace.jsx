@@ -10,6 +10,7 @@ export default function BuyerMarketplace() {
 
   const [lots, setLots] = useState([])
   const [filters, setFilters] = useState({ fabric_type: '', color_name: '', query: '', sort: 'newest' })
+  const [debouncedQ, setDebouncedQ] = useState('')
   const [draftQty, setDraftQty] = useState({})
   const [imageIndex, setImageIndex] = useState({})
   const [error, setError] = useState(null)
@@ -17,9 +18,15 @@ export default function BuyerMarketplace() {
   const [view, setView] = useState('grid')
   const [detailLot, setDetailLot] = useState(null)
 
-  function refresh() {
+  // Debounce the search query 300ms before hitting Supabase FTS
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQ(filters.query), 300)
+    return () => clearTimeout(t)
+  }, [filters.query])
+
+  function refresh(q = debouncedQ) {
     setLoading(true)
-    getLots({ status: 'available' })
+    getLots({ status: 'available', ...(q.trim() ? { q: q.trim() } : {}) })
       .then((data) => {
         setLots(data)
         setError(null)
@@ -29,9 +36,12 @@ export default function BuyerMarketplace() {
   }
 
   useEffect(() => {
-    refresh()
-    window.addEventListener('lots:changed', refresh)
-    return () => window.removeEventListener('lots:changed', refresh)
+    refresh(debouncedQ)
+  }, [debouncedQ])
+
+  useEffect(() => {
+    window.addEventListener('lots:changed', () => refresh(debouncedQ))
+    return () => window.removeEventListener('lots:changed', () => refresh(debouncedQ))
   }, [])
 
   const groupedLots = useMemo(() => groupLots(lots), [lots])
@@ -39,15 +49,9 @@ export default function BuyerMarketplace() {
   const colors = useMemo(() => [...new Set(groupedLots.map(l => l.color_name))].sort(), [groupedLots])
 
   const visibleLots = useMemo(() => {
-    const query = filters.query.trim().toLowerCase()
     return groupedLots
       .filter((lot) => !filters.fabric_type || lot.fabric_type === filters.fabric_type)
       .filter((lot) => !filters.color_name || lot.color_name === filters.color_name)
-      .filter((lot) => {
-        if (!query) return true
-        return [lot.name, lot.fabric_type, lot.composition, lot.color_name, lot.description]
-          .some((value) => String(value || '').toLowerCase().includes(query))
-      })
       .sort((a, b) => {
         if (filters.sort === 'price-low') return a.current_price_usd - b.current_price_usd
         if (filters.sort === 'price-high') return b.current_price_usd - a.current_price_usd
