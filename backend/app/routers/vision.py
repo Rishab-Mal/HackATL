@@ -3,11 +3,12 @@
 from typing import Optional
 
 import cv2
-from fastapi import APIRouter, File, HTTPException, Query, Response, UploadFile
+from fastapi import APIRouter, BackgroundTasks, File, HTTPException, Query, Response, UploadFile
 from fastapi.responses import HTMLResponse
 
 from ..config import get_settings
 from ..schemas import DetectResponse
+from ..vision.replicate_sam import warmup_replicate
 from ..vision.segmentation import detect_pieces
 
 router = APIRouter(prefix="/api/vision", tags=["vision"])
@@ -26,6 +27,20 @@ async def detect(image: UploadFile = File(...)):
         return detect_pieces(contents)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/warmup")
+async def warmup(background_tasks: BackgroundTasks):
+    """Boot the Replicate SAM container in the background so the next real scan
+    skips the cold-start delay. Fire-and-forget: returns immediately."""
+
+    settings = get_settings()
+    if not settings.replicate_api_token:
+        return {"status": "skipped"}
+    background_tasks.add_task(
+        warmup_replicate, settings.replicate_api_token, settings.replicate_sam_model
+    )
+    return {"status": "warming"}
 
 
 @router.get("/lab", response_class=HTMLResponse)
@@ -52,7 +67,7 @@ def aruco_marker(
     return Response(
         content=encoded.tobytes(),
         media_type="image/png",
-        headers={"Content-Disposition": f'inline; filename="scrap-sorter-aruco-{marker_id}.png"'},
+        headers={"Content-Disposition": f'inline; filename="reweave-aruco-{marker_id}.png"'},
     )
 
 
@@ -62,7 +77,7 @@ _LAB_HTML = """
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Scrap Sorter Vision Lab</title>
+  <title>Reweave Vision Lab</title>
   <style>
     :root { color-scheme: light; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
     * { box-sizing: border-box; }
@@ -120,7 +135,7 @@ _LAB_HTML = """
 </head>
 <body>
   <header>
-    <h1>Scrap Sorter Vision Lab</h1>
+    <h1>Reweave Vision Lab</h1>
     <p>Upload one table photo. The pipeline segments fabric, filters reference objects, estimates scale, asks a vision LLM for broad material type, and returns sort bins.</p>
   </header>
   <main>

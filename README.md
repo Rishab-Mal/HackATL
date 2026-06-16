@@ -1,4 +1,4 @@
-# Scrap Sorter
+# Reweave
 
 Factories throw away fabric scraps because sorting them is too slow. This app turns a photo of a messy scrap pile into sorted, sellable lots, backed by real factory production records, and connects those lots to recyclers and makers in a marketplace.
 

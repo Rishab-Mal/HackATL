@@ -1,11 +1,11 @@
-import { createContext, useContext, useState, useEffect } from 'react'
+import { createContext, useContext, useState } from 'react'
 
 const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => {
     try {
-      const stored = localStorage.getItem('scrap_user')
+      const stored = localStorage.getItem('reweave_user')
       return stored ? JSON.parse(stored) : null
     } catch {
       return null
@@ -14,14 +14,14 @@ export function AuthProvider({ children }) {
 
   function login(token, role, name) {
     const u = { token, role, name }
-    localStorage.setItem('scrap_user', JSON.stringify(u))
-    localStorage.setItem('scrap_token', token)
+    localStorage.setItem('reweave_user', JSON.stringify(u))
+    localStorage.setItem('reweave_token', token)
     setUser(u)
   }
 
   function logout() {
-    localStorage.removeItem('scrap_user')
-    localStorage.removeItem('scrap_token')
+    localStorage.removeItem('reweave_user')
+    localStorage.removeItem('reweave_token')
     setUser(null)
   }
 

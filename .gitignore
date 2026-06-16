@@ -16,3 +16,10 @@ backend/python3.11/
 # Node
 frontend/node_modules/
 frontend/dist/
+
+# Local runtime logs
+ngrok.log
+
+# Local visual inspection artifacts
+/.playwright-mcp/
+/reweave-*.png

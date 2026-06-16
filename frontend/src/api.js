@@ -5,7 +5,7 @@
 const BASE = '/api'
 
 async function request(path, options = {}) {
-  const token = localStorage.getItem('scrap_token')
+  const token = localStorage.getItem('reweave_token')
   const headers = { ...(options.headers || {}) }
   if (token) headers['Authorization'] = `Bearer ${token}`
   const res = await fetch(`${BASE}${path}`, { ...options, headers })
@@ -27,20 +27,8 @@ export function detectScrap(file) {
 }
 
 // ---------------------------------------------------------------------------
-// Factory records + lots (Person 2)
+// Lots (Person 2)
 // ---------------------------------------------------------------------------
-
-export function getFactoryRecords() {
-  return request('/factory-records')
-}
-
-export function createFactoryRecord(record) {
-  return request('/factory-records', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(record),
-  })
-}
 
 export function getLots(filters = {}) {
   const params = new URLSearchParams()
@@ -65,6 +53,14 @@ export function createLot(lot) {
   })
 }
 
+export function createScanRun(scanRun) {
+  return request('/lots/scan-runs', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(scanRun),
+  })
+}
+
 // ---------------------------------------------------------------------------
 // Marketplace + impact (Person 4)
 // ---------------------------------------------------------------------------
@@ -77,11 +73,13 @@ export function getActivity() {
   return request('/marketplace/activity')
 }
 
-export function claimLot(lotId, buyerName) {
+export function claimLot(lotId, buyerName, quantityKg = null) {
+  const body = { buyer_name: buyerName }
+  if (quantityKg !== undefined && quantityKg !== null) body.quantity_kg = quantityKg
   return request(`/lots/${lotId}/claim`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ buyer_name: buyerName }),
+    body: JSON.stringify(body),
   })
 }
 
@@ -95,4 +93,32 @@ export function delistLot(lotId) {
 
 export function relistLot(lotId) {
   return request(`/lots/${lotId}/relist`, { method: 'PATCH' })
+}
+
+export function deleteLot(lotId) {
+  return request(`/lots/${lotId}`, { method: 'DELETE' })
+}
+
+export function getAdminMetrics() {
+  return request('/admin/metrics')
+}
+
+// ---------------------------------------------------------------------------
+// Demo reset — wipes all scanned lots (keeps logins + buyers)
+// ---------------------------------------------------------------------------
+
+export function resetDemoData() {
+  return request('/admin/reset-demo', { method: 'POST' })
+}
+
+// ---------------------------------------------------------------------------
+// AI Material Destination Engine
+// ---------------------------------------------------------------------------
+
+export function analyzeDestinations(payload) {
+  return request('/destinations/analyze', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
 }

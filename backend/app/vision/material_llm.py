@@ -155,7 +155,7 @@ def _call_openrouter(api_key, model, prompt, full_image, sheet_image, timeout_s)
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
             "HTTP-Referer": "http://localhost:8000",
-            "X-OpenRouter-Title": "Scrap Sorter Vision Lab",
+            "X-OpenRouter-Title": "Reweave Vision Lab",
         },
         method="POST",
     )

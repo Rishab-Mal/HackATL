@@ -30,24 +30,62 @@ def segment_with_replicate(image_bgr, token: str, model: str, max_masks: int = 8
 
     os.environ["REPLICATE_API_TOKEN"] = token
 
-    ok, encoded = cv2.imencode(".png", image_bgr)
+    # JPEG (visually lossless at q92) instead of PNG keeps the upload ~5-10x
+    # smaller, which trims a real chunk off the SAM round trip. Segmentation
+    # quality is unaffected at this quality level.
+    ok, encoded = cv2.imencode(".jpg", image_bgr, [cv2.IMWRITE_JPEG_QUALITY, 92])
     if not ok:
         raise SegmentationError("Could not encode image for Replicate")
 
-    with tempfile.NamedTemporaryFile(suffix=".png") as tmp:
+    tmp = tempfile.NamedTemporaryFile(suffix=".jpg", delete=False)
+    try:
         tmp.write(encoded.tobytes())
-        tmp.flush()
+        tmp.close()
         with open(tmp.name, "rb") as image_file:
             input_payload = _input_payload(model, image_file, max_masks=max_masks)
             try:
                 output = replicate.run(_resolved_ref(replicate, model), input=input_payload)
             except Exception as exc:
                 raise SegmentationError(f"Replicate SAM call failed: {exc}") from exc
+    finally:
+        os.unlink(tmp.name)
 
     masks = _extract_masks(output, image_bgr.shape[:2])
     if not masks:
         raise SegmentationError("Replicate returned no usable masks")
     return masks
+
+
+def warmup_replicate(token: str, model: str, max_masks: int = 8) -> bool:
+    """Fire a tiny throwaway SAM call to boot the Replicate container ahead of a
+    real scan, so the worker does not pay the cold-start delay. Best effort: any
+    failure is swallowed since this only ever runs in the background."""
+
+    if not token:
+        return False
+    try:
+        import replicate
+    except ImportError:
+        return False
+
+    os.environ["REPLICATE_API_TOKEN"] = token
+    primer = np.full((96, 96, 3), 200, dtype=np.uint8)
+    primer[24:72, 24:72] = (60, 90, 160)  # one shape so the model has something to segment
+    ok, encoded = cv2.imencode(".jpg", primer, [cv2.IMWRITE_JPEG_QUALITY, 80])
+    if not ok:
+        return False
+
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".jpg") as tmp:
+            tmp.write(encoded.tobytes())
+            tmp.flush()
+            with open(tmp.name, "rb") as image_file:
+                payload = _input_payload(model, image_file, max_masks=max_masks)
+                replicate.run(_resolved_ref(replicate, model), input=payload)
+        return True
+    except Exception:
+        # A warm container is the only goal here; the result is discarded.
+        return False
 
 
 def _resolved_ref(replicate, model: str) -> str:

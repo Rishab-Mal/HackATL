@@ -1,32 +1,14 @@
 from datetime import datetime
 
-from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String, Text
-from sqlalchemy.orm import relationship
+from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, JSON, String, Text
 
 from .database import Base
 
 
-class FactoryRecord(Base):
-    """A production record the factory enters by hand, e.g. 'Batch 12 is 95% cotton, 5% spandex'.
-
-    Owned by Person 2 (backend / lots / factory records).
-    """
-
-    __tablename__ = "factory_records"
-
-    id = Column(Integer, primary_key=True, index=True)
-    batch_name = Column(String, nullable=False)
-    fabric_type = Column(String, nullable=False)
-    composition = Column(String, nullable=False)
-    notes = Column(Text, default="")
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-    lots = relationship("Lot", back_populates="factory_record")
-
-
 class Lot(Base):
-    """A sellable group of scraps, created from a vision color group plus an
-    optional factory record. Owned by Person 2.
+    """A sellable group of scraps, created from a camera scan (a vision color /
+    fabric group). Every descriptive field comes from the vision pipeline; the
+    price and environmental impact are computed when the lot is created.
     """
 
     __tablename__ = "lots"
@@ -34,22 +16,43 @@ class Lot(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
     description = Column(Text, default="")
+    # From the camera (vision pipeline)
     fabric_type = Column(String, nullable=False)
     composition = Column(String, nullable=False)
     color_name = Column(String, nullable=False)
     color_hex = Column(String, nullable=False)
+    lot_key = Column(String, nullable=True, index=True)
+    scan_run_id = Column(Integer, ForeignKey("scan_runs.id", ondelete="SET NULL"), nullable=True, index=True)
+    piece_images = Column(JSON, default=list)
     piece_count = Column(Integer, default=0)
     weight_kg = Column(Float, default=0.0)
+    # Computed at listing time
     price_usd = Column(Float, default=0.0)
     carbon_saved_kg = Column(Float, default=0.0)
     water_saved_l = Column(Float, default=0.0)
-    status = Column(String, default="available")  # available | claimed
+    # Marketplace lifecycle
+    status = Column(String, default="available")  # available | claimed | unlisted
     claimed_by = Column(String, nullable=True)
     claimed_at = Column(DateTime, nullable=True)
-    factory_record_id = Column(Integer, ForeignKey("factory_records.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    factory_record = relationship("FactoryRecord", back_populates="lots")
+
+class ScanRun(Base):
+    """One camera/table scan that produced one or more marketplace lots."""
+
+    __tablename__ = "scan_runs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    annotated_image_data_url = Column(Text, nullable=True)
+    image_width = Column(Integer, default=0)
+    image_height = Column(Integer, default=0)
+    piece_count = Column(Integer, default=0)
+    group_count = Column(Integer, default=0)
+    total_weight_kg = Column(Float, default=0.0)
+    total_carbon_saved_kg = Column(Float, default=0.0)
+    total_water_saved_l = Column(Float, default=0.0)
+    summary = Column(JSON, default=dict)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class User(Base):
@@ -65,7 +68,7 @@ class User(Base):
 
 
 class Buyer(Base):
-    """A recycler or maker profile in the marketplace. Owned by Person 4."""
+    """A recycler or maker profile in the marketplace."""
 
     __tablename__ = "buyers"
 

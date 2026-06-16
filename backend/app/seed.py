@@ -1,78 +1,37 @@
-"""Demo data so the frontend has something real to show immediately, even
-before the vision pipeline or factory records are wired up.
+"""Reference data the app needs to function: portal logins and the catalog of
+buyers (recyclers and makers) that lots can be claimed by.
 
-Person 4 (marketplace, impact logic, and demo data) owns this file -- tune
-the fabric types, buyer profiles, and pricing to tell a believable story
-(including the Carter's supplier rollout angle).
+There is intentionally NO sample inventory here. Every lot is created from a
+real camera scan, so the marketplace and all admin metrics start empty and
+fill in live as the demo runs. This keeps the numbers credible for judges.
 
-Generates a large, varied set of lots (100+) across many fabric types,
-colors, and statuses so the Marketplace / Sorted Lots filters have something
-real to filter.
+Idempotent: if the users table is already populated (e.g. seeded directly in
+Supabase) this is a no-op.
 """
-
-import random
-from datetime import datetime, timedelta
-
-from sqlalchemy.orm import Session
 
 import hashlib
 
+from sqlalchemy.orm import Session
+
 from . import models
-from .constants import CARBON_PER_KG, WATER_PER_KG
-from .pricing import calculate_base_price
-from .vision.colors import PALETTE, rgb_to_hex
+
 
 def _hash(pw: str) -> str:
     return hashlib.sha256(pw.encode()).hexdigest()
 
-RANDOM_SEED = 42
-NUM_FACTORY_RECORDS = 14
-NUM_LOTS = 110
-
-# (fabric type, composition)
-FABRIC_TYPES = [
-    ("Cotton/Spandex Jersey", "95% cotton, 5% spandex"),
-    ("Cotton Twill", "100% cotton"),
-    ("Cotton/Polyester Blend", "60% cotton, 40% polyester"),
-    ("Organic Cotton Jersey", "100% organic cotton"),
-    ("Stretch Denim", "98% cotton, 2% elastane"),
-    ("Cotton Fleece", "80% cotton, 20% polyester"),
-    ("Ribbed Knit", "92% cotton, 8% spandex"),
-    ("Cotton Canvas", "100% cotton"),
-    ("French Terry", "70% cotton, 30% polyester"),
-    ("Poplin", "100% cotton"),
-    ("Modal/Cotton Blend", "50% modal, 50% cotton"),
-    ("Linen/Cotton Blend", "55% linen, 45% cotton"),
-]
-
-LOT_NOUNS = ["Scraps", "Offcuts", "Remnants", "Trim Waste"]
-
 
 def seed_data(db: Session) -> None:
-    if db.query(models.FactoryRecord).count() > 0:
+    if db.query(models.User).count() > 0:
         return  # already seeded
 
-    # Demo portal users
-    demo_users = [
-        models.User(email="factory@demo.com", password_hash=_hash("factory123"), role="factory", name="Factory Worker"),
-        models.User(email="admin@demo.com",   password_hash=_hash("admin123"),   role="admin",   name="Admin"),
-        models.User(email="buyer@demo.com",   password_hash=_hash("buyer123"),   role="buyer",   name="Buyer"),
-    ]
-    db.add_all(demo_users)
-    db.commit()
-
-    rng = random.Random(RANDOM_SEED)
-
-    buyers = _make_buyers()
-    db.add_all(buyers)
-    db.commit()
-
-    factory_records = _make_factory_records(rng)
-    db.add_all(factory_records)
-    db.commit()
-
-    lots = _make_lots(rng, factory_records, buyers)
-    db.add_all(lots)
+    db.add_all(
+        [
+            models.User(email="factory@demo.com", password_hash=_hash("factory123"), role="factory", name="Factory Worker"),
+            models.User(email="admin@demo.com", password_hash=_hash("admin123"), role="admin", name="Admin"),
+            models.User(email="buyer@demo.com", password_hash=_hash("buyer123"), role="buyer", name="Buyer"),
+        ]
+    )
+    db.add_all(_make_buyers())
     db.commit()
 
 
@@ -159,68 +118,3 @@ def _make_buyers():
             interested_materials="cotton,spandex,knit,terry",
         ),
     ]
-
-
-def _make_factory_records(rng: random.Random):
-    records = []
-    used_batches: set[int] = set()
-    while len(records) < NUM_FACTORY_RECORDS:
-        batch_num = rng.randint(1, 99)
-        if batch_num in used_batches:
-            continue
-        used_batches.add(batch_num)
-
-        fabric_type, composition = rng.choice(FABRIC_TYPES)
-        records.append(
-            models.FactoryRecord(
-                batch_name=f"Batch {batch_num}",
-                fabric_type=fabric_type,
-                composition=composition,
-                notes=f"Offcuts logged from production batch {batch_num}.",
-            )
-        )
-    return records
-
-
-def _make_lots(rng: random.Random, factory_records, buyers):
-    colors = list(PALETTE.items())  # [(name, (r, g, b)), ...]
-    buyer_names = [b.name for b in buyers]
-
-    lots = []
-    for _ in range(NUM_LOTS):
-        factory_record = rng.choice(factory_records)
-        color_name, rgb = rng.choice(colors)
-
-        piece_count = rng.randint(5, 60)
-        weight_kg = round(rng.uniform(0.5, 15.0), 1)
-        price_usd = calculate_base_price(
-            fabric_type=factory_record.fabric_type,
-            composition=factory_record.composition,
-            color_name=color_name,
-            weight_kg=weight_kg,
-            piece_count=piece_count,
-        )
-        days_ago = rng.randint(0, 45)
-        is_claimed = rng.random() < 0.3
-        claimed_at = datetime.utcnow() - timedelta(minutes=rng.randint(1, 60 * 24 * 7)) if is_claimed else None
-
-        lots.append(
-            models.Lot(
-                name=f"{color_name.capitalize()} {factory_record.fabric_type} {rng.choice(LOT_NOUNS)}",
-                fabric_type=factory_record.fabric_type,
-                composition=factory_record.composition,
-                color_name=color_name,
-                color_hex=rgb_to_hex(rgb),
-                piece_count=piece_count,
-                weight_kg=weight_kg,
-                price_usd=price_usd,
-                carbon_saved_kg=round(weight_kg * CARBON_PER_KG, 2),
-                water_saved_l=round(weight_kg * WATER_PER_KG, 2),
-                status="claimed" if is_claimed else "available",
-                claimed_by=rng.choice(buyer_names) if is_claimed else None,
-                claimed_at=claimed_at,
-                factory_record_id=factory_record.id,
-                created_at=datetime.utcnow() - timedelta(days=days_ago),
-            )
-        )
-    return lots
