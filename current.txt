@@ -1,9 +1,7 @@
 REWEAVE — CURRENT STATE
 ========================
-(Last updated 2026-06-16, after merging the team's "Polish marketplace and
-admin flows" + "Update vision pipeline and marketplace UI" wave (commits
-ec9dcad–3ac8c99) into rishabBranch. Current HEAD: c128a0c on both `main`
-and `rishabBranch`, pushed to origin — fully in sync.)
+(Last updated 2026-06-16. Current HEAD: c64f1d9 on both `main` and
+`rishabBranch`, pushed to origin — fully in sync.)
 
 WHAT THE APP IS
 ---------------
@@ -240,6 +238,18 @@ RESOLVED in this update:
     accumulate into one lot instead of fragmenting.
   - ScanRun model: scans can be recorded with image + stats.
   - User location saved: PUT /auth/me/location used by SupplierMap.
+  - CV presentation overhauled (8d13c0c): processing stage now shows a
+    named 5-step pipeline (Segmenting → Clustering → Classifying →
+    Estimating → Listing) with spinner/checkmark animations advancing every
+    2.2s; plan stage has a before/after image toggle ("Annotated" /
+    "Original"); a CvSummary card shows piece count, group count, est.
+    weight, CO₂ diverted, water saved, and segmentation method under a
+    "Reweave Vision Engine" badge; manifest boxes animate in with a
+    staggered fade+slide (80ms per item).
+  - Windows crash on GET /api/admin/metrics fixed (c64f1d9): admin.py used
+    ZoneInfo("UTC") / ZoneInfo("America/New_York") which crash without the
+    tzdata package. Replaced with stdlib datetime.timezone.utc + fixed EDT
+    offset. Also fixed Linux-only %-d/%-I strftime codes.
 
 STILL OPEN:
   1. /api/admin/metrics still has zero authentication — full P&L/decay/
@@ -273,16 +283,12 @@ STILL OPEN:
 
 GIT STATE
 ---------
-main and rishabBranch are both at c128a0c, pushed to origin — fully in sync.
+main and rishabBranch are both at c64f1d9, pushed to origin — fully in sync.
 Recent history:
+  c64f1d9 Fix Windows crash in admin.py: replace ZoneInfo with stdlib timezone
+  8d13c0c Upgrade CV presentation: pipeline steps, before/after toggle, CV summary card
+  ccaa391 Update current.txt to reflect marketplace polish wave
   c128a0c Merge remote-tracking branch 'origin/main' into rishabBranch
-  6e7b576 Update current.txt to reflect Reweave rebrand, Supabase migration,
-           and AI Destination Engine
   3ac8c99 Polish marketplace and admin flows
   923ac06 Update vision pipeline and marketplace UI
-  23b2996 Add missing mapbox-gl dependency (used by SupplierMap)
-  ec9dcad Merge branch 'BranchN'
-  ...   (landing page + destination analysis polish from BranchN)
-  ...   (admin overhaul from BranchN)
-  e01f1e3 Merge branch 'rishabBranch'  ← where rishabBranch's AI Destination
-           Engine + Windows SAM fix were merged into main
+  e01f1e3 Merge branch 'rishabBranch'  ← AI Destination Engine + Windows SAM fix
