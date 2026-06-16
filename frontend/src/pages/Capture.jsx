@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { createLot, detectScrap } from '../api.js'
 import { useAuth } from '../context/AuthContext.jsx'
+import { FibrBadge, FibrWordmark } from '../components/FibrMark.jsx'
 
 // Factory worker scanning flow. Person 1 (vision) owns the /api/vision/detect
 // response shape this screen renders -- see backend/app/schemas.py:
@@ -454,7 +455,9 @@ export function FactoryHeader() {
   return (
     <header className="fx-header">
       <Link className="fx-brand" to="/factory">
-        <span className="fx-wordmark">Scrap Sorter</span>
+        <FibrBadge size={24} />
+        <FibrWordmark size={17} light />
+        <span className="fx-portal-tag">Factory</span>
       </Link>
 
       <button type="button" className="fx-signout" onClick={logout}>

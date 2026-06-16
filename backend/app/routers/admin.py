@@ -17,8 +17,9 @@ ESTIMATED_COST_FACTOR = 0.28
 @router.get("/metrics")
 def get_metrics(db: Session = Depends(get_db)):
     lots = db.query(models.Lot).all()
-    claimed = [l for l in lots if l.status == "claimed"]
+    claimed   = [l for l in lots if l.status == "claimed"]
     available = [l for l in lots if l.status == "available"]
+    unlisted  = [l for l in lots if l.status == "unlisted"]
 
     revenue = sum(l.price_usd for l in claimed)
     estimated_cost = revenue * ESTIMATED_COST_FACTOR
@@ -158,6 +159,7 @@ def get_metrics(db: Session = Depends(get_db)):
         "total_lots": len(lots),
         "available_lots": len(available),
         "claimed_lots": len(claimed),
+        "unlisted_lots": len(unlisted),
         "claim_rate_pct": round(len(claimed) / len(lots) * 100, 1) if lots else 0,
         "avg_days_to_claim": avg_days,
         "total_weight_kg": round(total_weight, 1),

@@ -71,19 +71,22 @@ export default function BuyerMarketplace() {
 
           return (
             <div className="buyer-lot-card" key={lot.id}>
-              {/* 3px color bar at top */}
-              <div className="buyer-lot-colorbar" style={{ background: lot.color_hex }} />
+              {/* Fabric color swatch */}
+              <div className="buyer-lot-colorbar" style={{ background: lot.color_hex }}>
+                <span className="buyer-lot-colorbar-label">{lot.color_name}</span>
+              </div>
 
               <div className="buyer-lot-body">
-                <div className="buyer-lot-type">{lot.fabric_type}</div>
+                <div className="buyer-lot-header-row">
+                  <div className="buyer-lot-type">{lot.fabric_type}</div>
+                  <div className="buyer-lot-age">{lot.days_listed}d listed</div>
+                </div>
                 <div className="buyer-lot-name">{lot.name}</div>
 
-                <div className="buyer-lot-price">
-                  ${lot.current_price_usd.toFixed(2)}
+                <div className="buyer-lot-price-row">
+                  <span className="buyer-lot-price">${lot.current_price_usd.toFixed(2)}</span>
                   {hasDecay && (
-                    <span className="buyer-lot-discount">
-                      -{lot.price_decay_pct}%
-                    </span>
+                    <span className="buyer-lot-discount">−{lot.price_decay_pct}%</span>
                   )}
                 </div>
 
@@ -92,13 +95,13 @@ export default function BuyerMarketplace() {
                 </div>
 
                 <div className="buyer-lot-meta-row">
-                  <span>{lot.color_name}</span>
-                  <span>·</span>
                   <span>{weightLb} lb</span>
                   <span>·</span>
                   <span>{lot.piece_count} pcs</span>
-                  <span>·</span>
-                  <span>listed {lot.days_listed}d ago</span>
+                </div>
+
+                <div className="buyer-lot-impact">
+                  {lot.carbon_saved_kg} kg CO₂ saved · {(lot.water_saved_l / 1000).toFixed(1)}K L water
                 </div>
 
                 <div className="buyer-qty-row">

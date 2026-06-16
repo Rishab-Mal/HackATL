@@ -5,7 +5,6 @@ import ProtectedRoute from './components/ProtectedRoute.jsx'
 import ChatBot from './components/ChatBot.jsx'
 import ErrorBoundary from './components/ErrorBoundary.jsx'
 
-import Login from './pages/Login.jsx'
 import LandingPage from './pages/LandingPage.jsx'
 import { FibrBadge, FibrWordmark } from './components/FibrMark.jsx'
 
@@ -119,7 +118,7 @@ function PortalNav() {
       { to: '/factory/bins', label: 'Live Bins' },
     ],
     admin: [
-      { to: '/admin', label: 'Operations', end: true },
+      { to: '/admin', label: 'Dashboard', end: true },
       { to: '/admin/lots', label: 'Inventory' },
       { to: '/admin/impact', label: 'Impact' },
     ],
@@ -133,11 +132,11 @@ function PortalNav() {
 
   return (
     <header className="nav">
-      <div className="brand">
+      <NavLink className="brand" to={`/${user.role}`} end>
         <FibrBadge size={26} />
         <FibrWordmark size={18} />
         <span className="portal-badge">{roleLabel[user.role]}</span>
-      </div>
+      </NavLink>
       <nav>
         {(links[user.role] || []).map(l => (
           <NavLink key={l.to} to={l.to} end={l.end}>{l.label}</NavLink>

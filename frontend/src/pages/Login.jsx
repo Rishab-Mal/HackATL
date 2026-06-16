@@ -40,8 +40,8 @@ export default function Login() {
     <div className="login-page">
       <div className="login-card">
         <div className="login-brand">
-          <div className="login-brand-icon">SS</div>
-          Scrap Sorter
+          <div className="login-brand-icon">F</div>
+          fibr
         </div>
         <h1 className="login-title">Sign in</h1>
         <p className="login-sub">Enter your portal credentials to continue.</p>

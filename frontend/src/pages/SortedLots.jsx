@@ -111,32 +111,33 @@ export default function SortedLots() {
             <div
               className="buyer-lot-card"
               key={lot.id}
-              style={isUnlisted ? { opacity: 0.6 } : undefined}
+              style={isUnlisted ? { opacity: 0.55 } : undefined}
             >
-              <div className="buyer-lot-colorbar" style={{ background: lot.color_hex }} />
+              {/* Fabric color swatch */}
+              <div className="buyer-lot-colorbar" style={{ background: lot.color_hex }}>
+                <span className="buyer-lot-colorbar-label">{lot.color_name}</span>
+              </div>
 
               <div className="buyer-lot-body">
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                <div className="buyer-lot-header-row">
                   <div className="buyer-lot-type">{lot.fabric_type}</div>
-                  {/* Status pill */}
                   {isClaimed && (
-                    <span style={{ fontSize: 10, fontWeight: 700, background: 'var(--c-bg)', border: '1px solid var(--c-border)', borderRadius: 3, padding: '1px 7px', color: 'var(--c-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                      Claimed
-                    </span>
+                    <span className="inv-status-pill inv-status-pill--claimed">Claimed</span>
                   )}
                   {isUnlisted && (
-                    <span style={{ fontSize: 10, fontWeight: 700, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 3, padding: '1px 7px', color: 'var(--c-danger)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                      Unlisted
-                    </span>
+                    <span className="inv-status-pill inv-status-pill--unlisted">Unlisted</span>
+                  )}
+                  {!isClaimed && !isUnlisted && (
+                    <span className="buyer-lot-age">{lot.days_listed}d listed</span>
                   )}
                 </div>
 
                 <div className="buyer-lot-name">{lot.name}</div>
 
-                <div className="buyer-lot-price">
-                  ${lot.current_price_usd.toFixed(2)}
+                <div className="buyer-lot-price-row">
+                  <span className="buyer-lot-price">${lot.current_price_usd.toFixed(2)}</span>
                   {hasDecay && (
-                    <span className="buyer-lot-discount">-{lot.price_decay_pct}%</span>
+                    <span className="buyer-lot-discount">−{lot.price_decay_pct}%</span>
                   )}
                 </div>
 
@@ -145,29 +146,24 @@ export default function SortedLots() {
                 </div>
 
                 <div className="buyer-lot-meta-row">
-                  <span>{lot.color_name}</span>
-                  <span>·</span>
                   <span>{weightLb} lb</span>
                   <span>·</span>
                   <span>{lot.piece_count} pcs</span>
                   <span>·</span>
-                  <span>listed {lot.days_listed}d ago</span>
+                  <span>{lot.days_listed}d listed</span>
                 </div>
 
-                {/* Impact row */}
-                <div style={{ fontSize: 11.5, color: 'var(--c-muted)', marginBottom: 14 }}>
-                  {lot.carbon_saved_kg} kg CO₂ saved · {lot.water_saved_l.toLocaleString()} L water
+                <div className="buyer-lot-impact">
+                  {lot.carbon_saved_kg} kg CO₂ · {(lot.water_saved_l / 1000).toFixed(1)}K L water
                 </div>
 
-                {/* CTA */}
                 {isClaimed ? (
-                  <div style={{ marginTop: 'auto', padding: '8px 0', fontSize: 12, color: 'var(--c-muted)', borderTop: '1px solid var(--c-border)' }}>
-                    Claimed by <strong style={{ color: 'var(--c-text)' }}>{lot.claimed_by}</strong>
+                  <div className="inv-claimed-by">
+                    Claimed by <strong>{lot.claimed_by}</strong>
                   </div>
                 ) : isUnlisted ? (
                   <button
                     className="buyer-lot-cta"
-                    style={{ marginTop: 'auto', background: 'var(--c-text)' }}
                     onClick={() => handleRelist(lot.id)}
                     disabled={busy}
                   >
@@ -175,8 +171,7 @@ export default function SortedLots() {
                   </button>
                 ) : (
                   <button
-                    className="buyer-lot-cta"
-                    style={{ marginTop: 'auto', background: 'transparent', color: 'var(--c-danger)', border: '1px solid #fecaca' }}
+                    className="inv-delist-btn"
                     onClick={() => handleDelist(lot.id)}
                     disabled={busy}
                   >

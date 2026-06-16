@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 
 const WELCOME = {
   role: 'assistant',
-  content: "Hi! I'm ScrapBot 👋 I can help you navigate Scrap Sorter, explain how to create lots, find the right buyers, or answer questions about fabric recycling. What can I help you with?",
+  content: "Hi! I'm FibrBot. I can help you navigate fibr, explain how lots are created and priced, find the right buyers, or answer questions about fabric recycling. What can I help you with?",
 }
 
 export default function ChatBot() {
