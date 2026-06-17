@@ -1372,6 +1372,83 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   gap: 16px;
 }
 
+/* ── Context strip (Projected Dashboard) ── */
+.proj-context-strip {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 14px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: var(--r-lg);
+  font-size: 12px;
+  color: #166534;
+}
+.proj-context-badge {
+  padding: 2px 9px;
+  background: #166534;
+  color: #fff;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* ── KPI strip (both dashboards) ── */
+.dash-kpi-strip {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0;
+  border-radius: var(--r-xl);
+  overflow: hidden;
+  box-shadow: 0 2px 16px rgba(0,0,0,0.10);
+}
+.dash-kpi-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 22px 20px 18px;
+}
+.dash-kpi-tile + .dash-kpi-tile {
+  border-left: 1px solid rgba(255,255,255,0.08);
+}
+.dash-kpi-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.dash-kpi-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+.dash-kpi-icon {
+  opacity: 0.7;
+}
+.dash-kpi-value {
+  font-size: 2rem;
+  font-weight: 820;
+  line-height: 1;
+  letter-spacing: -0.5px;
+  margin-top: 4px;
+}
+.dash-kpi-sub {
+  font-size: 11px;
+  opacity: 0.85;
+  line-height: 1.4;
+}
+
+/* chart subtitle note */
+.proj-chart-note {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: #64748b;
+  line-height: 1.4;
+}
+
 .admin-hero-stats-card {
   align-self: stretch;
   display: flex;
@@ -6059,8 +6136,8 @@ html { scroll-behavior: smooth; }
 }
 .admin-proj-chart-main { display: flex; flex-direction: column; }
 .proj-area-chart {
-  height: 200px;
-  margin-top: 16px;
+  height: 240px;
+  margin-top: 12px;
 }
 .admin-proj-scale-card {
   display: flex;

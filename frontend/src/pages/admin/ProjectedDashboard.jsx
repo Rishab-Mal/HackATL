@@ -1,32 +1,34 @@
 import { useEffect, useState } from 'react'
-import { AreaChart, Card, Flex, Metric, Text, Title } from '@tremor/react'
+import { AreaChart, Card, Title } from '@tremor/react'
 import { getAdminMetrics } from '../../api.js'
 import { formatWeightKg } from '../../utils/formatters.js'
 
 const KPIS = [
-  { label: 'CO₂ Prevented',       value: '6,300 t', note: 'Removing 1,360 cars from the road for a full year', color: 'emerald' },
-  { label: 'Water Conserved',      value: '8.1B L',  note: 'Enough for 124 million showers',                   color: 'blue' },
-  { label: 'Fabric from Landfill', value: '3,000 t', note: '6.6 million pounds kept in active circulation',     color: 'emerald' },
-  { label: 'Revenue Unlocked',     value: '$9M',     note: 'At $3 per kg average lot price across the network', color: 'emerald' },
+  { label: 'CO₂ Prevented',       value: '6,300 t', sub: '= removing 1,360 cars for a full year',          bg: '#166534', text: '#fff', accent: '#86efac' },
+  { label: 'Water Conserved',      value: '8.1B L',  sub: '= 124 million showers',                          bg: '#1e40af', text: '#fff', accent: '#93c5fd' },
+  { label: 'Fabric from Landfill', value: '3,000 t', sub: '= 6.6M lbs kept in active circulation',         bg: '#292524', text: '#fff', accent: '#a8a29e' },
+  { label: 'Revenue Unlocked',     value: '$9M / yr', sub: 'At $3/kg avg across the network',               bg: '#92400e', text: '#fff', accent: '#fcd34d' },
 ]
 
-const BASE_REVENUE = [
-  { name: 'Yr 1 · 5 fac.', value: 1.2 },
-  { name: 'Yr 2 · 25 fac.', value: 5.5 },
-  { name: 'Yr 3 · 50 fac.', value: 9.0 },
-]
-
-const SCALE_STEPS = [
-  { label: 'Pilot', subLabel: null },            // filled dynamically
-  { label: '×1,316', subLabel: 'one facility / yr' },
-  { label: '×50 fac.', subLabel: 'full network' },
-  { label: '3,000 t', subLabel: 'diverted / yr', end: true },
+const SCALE_POINTS = [
+  { label: 'Pilot',     sub: null },
+  { label: '×1,316',   sub: 'one facility / yr' },
+  { label: '×50 fac.', sub: 'full network' },
+  { label: '3,000 t',  sub: 'diverted / yr', end: true },
 ]
 
 const SUMMARY_ITEMS = [
   { label: 'CO₂ prevented', value: '6,300 t' },
   { label: 'Revenue',        value: '$9M' },
   { label: 'Water saved',    value: '8.1B L' },
+]
+
+// 5-year revenue ramp: Demo(live) → Q4 2026 → 2027 → 2028 → 2029 → 2030
+const REVENUE_RAMP = [
+  { year: '2027 · 5 fac',  revenue: 1.0 },
+  { year: '2028 · 15 fac', revenue: 3.0 },
+  { year: '2029 · 30 fac', revenue: 5.5 },
+  { year: '2030 · 50 fac', revenue: 9.0 },
 ]
 
 export default function ProjectedDashboard() {
@@ -38,98 +40,89 @@ export default function ProjectedDashboard() {
 
   const pilotWeight = metrics ? formatWeightKg(metrics.total_weight_kg) : '—'
   const revM = metrics ? parseFloat(((metrics.revenue || 0) / 1_000_000).toFixed(4)) : 0
-  const revenueData = [{ name: 'Demo (Live)', value: revM }, ...BASE_REVENUE]
+
+  const revenueData = [
+    { year: 'Live Pilot', revenue: revM },
+    { year: '2026 · 1 fac', revenue: 0.18 },
+    ...REVENUE_RAMP,
+  ]
 
   return (
     <div className="admin-command">
-      {/* ── Hero (light card, no black) ── */}
-      <section className="admin-hero">
-        <div className="admin-hero-copy">
-          <span className="admin-eyebrow">Reweave · Carter's Network Projection</span>
-          <h1>What Reweave looks like at Carter's scale.</h1>
-        </div>
-        <Card decoration="left" decorationColor="emerald" className="admin-hero-stats-card">
-          <Flex alignItems="start" justifyContent="between">
-            <div>
-              <Text>Carter's contract facilities</Text>
-              <Metric>50</Metric>
+      {/* ── Subtle context strip ── */}
+      <div className="proj-context-strip">
+        <span className="proj-context-badge">Carter's Scale Model</span>
+        <span>50 facilities · 5,000 kg / fac / month · $3 / kg avg · same CV pipeline</span>
+      </div>
+
+      {/* ── KPI strip ── */}
+      <div className="dash-kpi-strip">
+        {KPIS.map((kpi) => (
+          <div key={kpi.label} className="dash-kpi-tile" style={{ background: kpi.bg, color: kpi.text }}>
+            <div className="dash-kpi-top">
+              <span className="dash-kpi-label" style={{ color: kpi.accent }}>{kpi.label}</span>
             </div>
-            <div className="admin-hero-chips">
-              <span>5,000 kg / fac / mo</span>
-              <span>3,000 t / year</span>
-              <span>$9M revenue</span>
-            </div>
-          </Flex>
+            <strong className="dash-kpi-value">{kpi.value}</strong>
+            <span className="dash-kpi-sub" style={{ color: kpi.accent }}>{kpi.sub}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Charts ── */}
+      <div className="admin-proj-chart-row">
+        <Card className="admin-proj-chart-main">
+          <Title>5-year revenue ramp</Title>
+          <p className="proj-chart-note">
+            Anchored to live pilot · scales linearly through Carter's 50-facility network by 2030
+          </p>
+          <AreaChart
+            className="proj-area-chart"
+            data={revenueData}
+            index="year"
+            categories={['revenue']}
+            colors={['emerald']}
+            valueFormatter={(v) => `$${v}M`}
+            showAnimation
+            showLegend={false}
+            curveType="monotone"
+          />
         </Card>
-      </section>
 
-      <div className="admin-tremor-section">
-        {/* ── KPI cards ── */}
-        <div className="admin-proj-kpi-grid">
-          {KPIS.map((kpi) => (
-            <Card key={kpi.label} decoration="top" decorationColor={kpi.color}>
-              <Text>{kpi.label}</Text>
-              <Metric className="proj-metric">{kpi.value}</Metric>
-              <Text className="proj-note">{kpi.note}</Text>
-            </Card>
-          ))}
-        </div>
+        <Card className="admin-proj-scale-card">
+          <Title>Upscaling logic</Title>
+          <p className="proj-chart-note">From this demo to Carter's full network</p>
 
-        {/* ── Charts ── */}
-        <div className="admin-proj-chart-row">
-          <Card className="admin-proj-chart-main">
-            <Title>Revenue ramp — projected rollout</Title>
-            <Text className="proj-note">
-              Live pilot anchors the chart · scales through 5, 25, and 50 Carter's facilities.
-            </Text>
-            <AreaChart
-              className="proj-area-chart"
-              data={revenueData}
-              index="name"
-              categories={['value']}
-              colors={['emerald']}
-              valueFormatter={(v) => `$${v}M`}
-              showAnimation
-              showLegend={false}
-            />
-          </Card>
-
-          <Card className="admin-proj-scale-card">
-            <Title>Upscaling logic</Title>
-            <Text className="proj-note">From this demo to Carter's full network</Text>
-
-            <div className="proj-scale-chain">
-              <div className="proj-scale-step">
-                <strong>Pilot</strong>
-                <span>{pilotWeight} scanned</span>
-              </div>
-              <span className="proj-scale-arrow">→</span>
-              <div className="proj-scale-step">
-                <strong>×1,316</strong>
-                <span>one facility / yr</span>
-              </div>
-              <span className="proj-scale-arrow">→</span>
-              <div className="proj-scale-step">
-                <strong>×50 fac.</strong>
-                <span>full network</span>
-              </div>
-              <span className="proj-scale-arrow">→</span>
-              <div className="proj-scale-step proj-scale-step--end">
-                <strong>3,000 t</strong>
-                <span>diverted / yr</span>
-              </div>
+          <div className="proj-scale-chain">
+            <div className="proj-scale-step">
+              <strong>Pilot</strong>
+              <span>{pilotWeight} scanned</span>
             </div>
-
-            <div className="proj-summary-grid">
-              {SUMMARY_ITEMS.map((item) => (
-                <div key={item.label} className="proj-summary-item">
-                  <span>{item.label}</span>
-                  <strong>{item.value}</strong>
-                </div>
-              ))}
+            <span className="proj-scale-arrow">→</span>
+            <div className="proj-scale-step">
+              <strong>×1,316</strong>
+              <span>one facility / yr</span>
             </div>
-          </Card>
-        </div>
+            <span className="proj-scale-arrow">→</span>
+            <div className="proj-scale-step">
+              <strong>×50 fac.</strong>
+              <span>full network</span>
+            </div>
+            <span className="proj-scale-arrow">→</span>
+            <div className="proj-scale-step proj-scale-step--end">
+              <strong>3,000 t</strong>
+              <span>diverted / yr</span>
+            </div>
+          </div>
+
+          <div className="proj-summary-grid">
+            {SUMMARY_ITEMS.map((item) => (
+              <div key={item.label} className="proj-summary-item">
+                <span>{item.label}</span>
+                <strong>{item.value}</strong>
+              </div>
+            ))}
+          </div>
+        </Card>
       </div>
     </div>
   )
