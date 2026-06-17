@@ -83,6 +83,13 @@ export default function AdminDashboard() {
             publish lots automatically, then show judges the evidence, business value, and
             environmental impact within seconds.
           </p>
+          <Link className="admin-net-cta" to="/admin/network">
+            See the network at full scale
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M5 12h14" />
+              <path d="m13 6 6 6-6 6" />
+            </svg>
+          </Link>
         </div>
         <div className="admin-hero-panel">
           <div className="admin-live-row">
