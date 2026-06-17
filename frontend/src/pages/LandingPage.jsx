@@ -347,35 +347,6 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── Live impact strip (only when real data exists) ── */}
-      {liveMetrics && (
-        <section className="lp-live-strip">
-          <div className="landing-inner">
-            <div className="lp-live-inner">
-              <span className="lp-live-badge">Live · Carter's pilot</span>
-              <div className="lp-live-metrics">
-                <div className="lp-live-metric">
-                  <strong>{formatWeightKg(liveMetrics.total_weight_kg)}</strong>
-                  <span>fabric diverted</span>
-                </div>
-                <div className="lp-live-metric">
-                  <strong>{formatImpactMass(liveMetrics.total_carbon_saved_kg)}</strong>
-                  <span>CO₂ prevented</span>
-                </div>
-                <div className="lp-live-metric">
-                  <strong>{liveMetrics.total_lots}</strong>
-                  <span>lots on platform</span>
-                </div>
-                <div className="lp-live-metric">
-                  <strong>{liveMetrics.claim_rate_pct}%</strong>
-                  <span>claim rate</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-      )}
-
       {/* ── Stats bar ── */}
       <section className="landing-stats-bar">
         <div className="landing-inner">
