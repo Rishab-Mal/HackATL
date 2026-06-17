@@ -5718,3 +5718,93 @@ html { scroll-behavior: smooth; }
 .factory-app .fx-box-wrap {
   animation: fx-box-in 0.28s ease both;
 }
+
+/* ── Crop step (frame fabrics + marker before scanning) ── */
+.factory-app .fx-crop {
+  gap: 0.9rem;
+}
+
+.factory-app .fx-crop-frame {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 260px;
+  padding: 0.4rem 0;
+}
+
+.factory-app .fx-crop-status {
+  color: var(--f-muted);
+  font-size: 0.92rem;
+  text-align: center;
+  padding: 3rem 1rem;
+}
+
+.factory-app .fx-crop-stage {
+  position: relative;
+  touch-action: none;
+  border-radius: var(--r-xl);
+  overflow: hidden;
+  background: #0b0c0e;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.28);
+}
+
+.factory-app .fx-crop-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.factory-app .fx-crop-shade {
+  position: absolute;
+  inset: 0;
+  background: rgba(10, 12, 14, 0.58);
+  pointer-events: none;
+}
+
+.factory-app .fx-crop-box {
+  position: absolute;
+  box-sizing: border-box;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+  cursor: move;
+  touch-action: none;
+}
+
+.factory-app .fx-crop-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.32) 1px, transparent 1px),
+    linear-gradient(to right, rgba(255, 255, 255, 0.32) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.32) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.32) 1px, transparent 1px);
+  background-position: 33.33% 0, 66.66% 0, 0 33.33%, 0 66.66%;
+  background-size: 1px 100%, 1px 100%, 100% 1px, 100% 1px;
+  background-repeat: no-repeat;
+}
+
+.factory-app .fx-crop-handle {
+  position: absolute;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid var(--f-amber, #16a34a);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  touch-action: none;
+}
+
+.factory-app .fx-crop-handle--nw { top: -17px; left: -17px; cursor: nwse-resize; }
+.factory-app .fx-crop-handle--ne { top: -17px; right: -17px; cursor: nesw-resize; }
+.factory-app .fx-crop-handle--sw { bottom: -17px; left: -17px; cursor: nesw-resize; }
+.factory-app .fx-crop-handle--se { bottom: -17px; right: -17px; cursor: nwse-resize; }
+
+.factory-app .fx-crop-secondary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.2rem;
+  margin-top: 0.5rem;
+}

@@ -4,6 +4,7 @@ import { createLot, createScanRun, detectScrap, resetDemoData, saveMyLocation } 
 import { useAuth } from '../context/AuthContext.jsx'
 import { ReweaveLogo } from '../components/ReweaveMark.jsx'
 import DestinationAnalysis from '../components/DestinationAnalysis.jsx'
+import ImageCropper from '../components/ImageCropper.jsx'
 
 // Factory worker scanning flow. Person 1 (vision) owns the /api/vision/detect
 // response shape this screen renders -- see backend/app/schemas.py:
@@ -24,7 +25,8 @@ function savedContinuousServerPref() {
 }
 
 export default function Capture() {
-  const [stage, setStage] = useState('start') // start | capture | processing | plan | listed | error
+  const [stage, setStage] = useState('start') // start | capture | crop | processing | plan | listed | error
+  const [pickedFile, setPickedFile] = useState(null)
   const [previewUrl, setPreviewUrl] = useState(null)
   const [result, setResult] = useState(null)
   const [error, setError] = useState(null)
@@ -71,21 +73,32 @@ export default function Capture() {
     return () => clearInterval(timer)
   }, [stage])
 
-  function startScan(e) {
+  // A photo was picked (camera or library). Hand it to the crop step first --
+  // the worker frames just the fabrics + marker before we run detection. This
+  // also lets us decode HEIC photos so the pipeline always gets a clean JPEG.
+  function pickPhoto(e) {
     const selected = e.target.files && e.target.files[0]
     e.target.value = '' // allow re-picking the same file later
     if (!selected) return
+    setPickedFile(selected)
+    setError(null)
+    setStage('crop')
+  }
 
+  // Run the existing vision pipeline on the cropped JPEG the worker confirmed.
+  function runDetect(file) {
+    if (!file) return
     autoSavedRef.current = false
     setError(null)
     setResult(null)
     setPacked(new Set())
     setFinishedBatch(null)
     setZoomOpen(false)
-    setPreviewUrl(URL.createObjectURL(selected))
+    if (previewUrl) URL.revokeObjectURL(previewUrl)
+    setPreviewUrl(URL.createObjectURL(file))
     setStage('processing')
 
-    detectScrap(selected, { useDeployment: useContinuousServer })
+    detectScrap(file, { useDeployment: useContinuousServer })
       .then((res) => {
         setResult(res)
         autoSaveLots(res)
@@ -256,15 +269,25 @@ export default function Capture() {
           <label className="fx-btn fx-btn--primary">
             <IconCamera />
             Take photo
-            <input type="file" accept="image/*" capture="environment" onChange={startScan} />
+            <input type="file" accept="image/*,.heic,.heif" capture="environment" onChange={pickPhoto} />
           </label>
           <label className="fx-btn-text">
             <IconImage />
             Upload photo
-            <input type="file" accept="image/*" onChange={startScan} />
+            <input type="file" accept="image/*,.heic,.heif" onChange={pickPhoto} />
           </label>
         </div>
       </section>
+    )
+  } else if (stage === 'crop') {
+    body = pickedFile ? (
+      <ImageCropper
+        file={pickedFile}
+        onConfirm={runDetect}
+        onCancel={() => setStage('capture')}
+      />
+    ) : (
+      <section className="fx-stage" />
     )
   } else if (stage === 'processing') {
     body = (
@@ -310,7 +333,7 @@ export default function Capture() {
           icon={<IconAlert />}
           title="Photo needs another try"
           text={error || 'Use brighter light, separate the scraps, and take the table straight on.'}
-          onPick={startScan}
+          onPick={pickPhoto}
         />
       </section>
     )
@@ -330,7 +353,7 @@ export default function Capture() {
             icon={<IconSearch />}
             title="No fabric groups found"
             text="Spread the pieces out more clearly and retake the table from above."
-            onPick={startScan}
+            onPick={pickPhoto}
           />
         ) : (
           <>
@@ -660,7 +683,7 @@ function Panel({ icon, title, text, onPick }) {
       <label className="fx-btn fx-btn--primary">
         <IconCamera />
         Retake photo
-        <input type="file" accept="image/*" capture="environment" onChange={onPick} />
+        <input type="file" accept="image/*,.heic,.heif" capture="environment" onChange={onPick} />
       </label>
     </div>
   )
