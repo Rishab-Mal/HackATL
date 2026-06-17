@@ -16,6 +16,7 @@ import BinFeed from './pages/factory/BinFeed.jsx'
 
 // Admin portal
 import AdminDashboard from './pages/admin/AdminDashboard.jsx'
+import ProjectedDashboard from './pages/admin/ProjectedDashboard.jsx'
 import SortedLots from './pages/SortedLots.jsx'
 
 // Buyer portal
@@ -141,9 +142,9 @@ function PortalNav() {
       { to: '/factory/bins', label: 'Live Bins' },
     ],
     admin: [
-      { to: '/admin', label: 'Operations', end: true },
+      { to: '/admin', label: 'Mock Dashboard', end: true },
+      { to: '/admin/projected', label: 'Projected Dashboard' },
       { to: '/admin/lots', label: 'Inventory' },
-      { to: '/admin/impact', label: 'Impact' },
     ],
     buyer: [
       { to: '/buyer', label: 'Marketplace', end: true },
@@ -203,6 +204,7 @@ function AppInner() {
 
             {/* Admin */}
             <Route path="/admin" element={<ProtectedRoute role="admin"><AdminDashboard /></ProtectedRoute>} />
+            <Route path="/admin/projected" element={<ProtectedRoute role="admin"><ProjectedDashboard /></ProtectedRoute>} />
             <Route path="/admin/lots" element={<ProtectedRoute role="admin"><SortedLots /></ProtectedRoute>} />
             <Route path="/admin/impact" element={<ProtectedRoute role="admin"><Dashboard /></ProtectedRoute>} />
 

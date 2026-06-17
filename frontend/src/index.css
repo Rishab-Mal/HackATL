@@ -1366,6 +1366,37 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   font-size: 12px;
 }
 
+.admin-tremor-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.admin-hero-stats-card {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.admin-hero-chips {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.admin-hero-chips span {
+  padding: 3px 10px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 999px;
+  color: #166534;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .admin-empty-state {
   display: flex;
   justify-content: space-between;
@@ -6000,6 +6031,97 @@ html { scroll-behavior: smooth; }
   font-size: 12px;
   font-weight: 500;
   color: #86efac;
+}
+
+/* ── Projected Dashboard (Tremor-based) ── */
+.admin-proj-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.proj-metric {
+  margin-top: 4px !important;
+  font-size: 1.75rem !important;
+  line-height: 1.1 !important;
+  color: #111 !important;
+}
+.proj-note {
+  margin-top: 6px !important;
+  font-size: 11px !important;
+  color: #64748b !important;
+  line-height: 1.4 !important;
+}
+.admin-proj-chart-row {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 16px;
+}
+.admin-proj-chart-main { display: flex; flex-direction: column; }
+.proj-area-chart {
+  height: 200px;
+  margin-top: 16px;
+}
+.admin-proj-scale-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.proj-scale-chain {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+.proj-scale-step {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+}
+.proj-scale-step strong {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #111;
+}
+.proj-scale-step span {
+  font-size: 9px;
+  color: #64748b;
+}
+.proj-scale-step--end {
+  background: #f0fdf4;
+  border-color: #166534;
+}
+.proj-scale-step--end strong { color: #166534; }
+.proj-scale-arrow { color: #94a3b8; font-size: 16px; font-weight: 700; }
+.proj-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.proj-summary-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+}
+.proj-summary-item span {
+  font-size: 10px;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.proj-summary-item strong {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #166534;
 }
 
 /* ── Admin dashboard: empty state CTA ── */
