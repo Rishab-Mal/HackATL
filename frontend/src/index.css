@@ -5718,3 +5718,93 @@ html { scroll-behavior: smooth; }
 .factory-app .fx-box-wrap {
   animation: fx-box-in 0.28s ease both;
 }
+
+/* ── Listed screen: impact banner ── */
+.factory-app .fx-listed-impact {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  padding: 10px 14px;
+  margin: 0 0 16px;
+  background: rgba(127, 160, 111, 0.12);
+  border: 1px solid rgba(127, 160, 111, 0.28);
+  border-radius: 8px;
+  font-size: 0.8rem;
+  color: var(--f-muted);
+}
+.factory-app .fx-listed-impact strong {
+  color: var(--f-text);
+  font-weight: 600;
+}
+.factory-app .fx-listed-impact .fx-listed-impact-green {
+  color: var(--f-green);
+}
+.factory-app .fx-listed-impact .fx-listed-impact-sep {
+  color: var(--f-line);
+}
+
+/* ── Landing page: live metrics strip ── */
+.lp-live-strip {
+  background: #0e1a14;
+  border-top: 1px solid #1e3327;
+  border-bottom: 1px solid #1e3327;
+  padding: 14px 0;
+}
+.lp-live-inner {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+.lp-live-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #5a9e6f;
+  background: rgba(90, 158, 111, 0.14);
+  border: 1px solid rgba(90, 158, 111, 0.3);
+  border-radius: 4px;
+  padding: 3px 8px;
+  white-space: nowrap;
+}
+.lp-live-metrics {
+  display: flex;
+  gap: 32px;
+  flex-wrap: wrap;
+}
+.lp-live-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.lp-live-metric strong {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #f0eee8;
+  letter-spacing: -0.02em;
+}
+.lp-live-metric span {
+  font-size: 0.7rem;
+  color: #7a8c82;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* ── Admin dashboard: empty state CTA ── */
+.admin-empty-cta {
+  display: inline-block;
+  padding: 9px 20px;
+  background: #166534;
+  color: #fff;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.admin-empty-cta:hover {
+  background: #15803d;
+}

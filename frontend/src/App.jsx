@@ -24,7 +24,7 @@ import BuyerOrders from './pages/buyer/BuyerOrders.jsx'
 
 // Shared pages still available inside portals
 import Dashboard from './pages/Dashboard.jsx'
-import { formatMoney, formatWeightKg } from './utils/formatters.js'
+import { formatMoney, formatWeightKg, formatImpactMass } from './utils/formatters.js'
 
 function CartButton() {
   const { items, total, isOpen, setIsOpen } = useCart()
@@ -52,6 +52,12 @@ function CheckoutPanel() {
   const { user } = useAuth()
   const { items, total, removeFromCart, checkout, isOpen, setIsOpen, placing } = useCart()
   if (!isOpen) return null
+
+  const totalCarbonKg = items.reduce((sum, { lot, qty }) => {
+    const w = Number(lot.weight_kg) || 0
+    const c = Number(lot.carbon_saved_kg) || 0
+    return sum + (qty && w > 0 ? (qty / w) * c : c)
+  }, 0)
 
   return (
     <>
@@ -94,6 +100,13 @@ function CheckoutPanel() {
         </div>
 
         <div className="checkout-footer">
+          {totalCarbonKg > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 0', borderBottom: '1px solid var(--c-line)', marginBottom: 10, fontSize: 12 }}>
+              <span style={{ color: 'var(--c-muted)' }}>Your order saves</span>
+              <strong style={{ color: '#166534' }}>{formatImpactMass(totalCarbonKg)} CO₂</strong>
+              <span style={{ color: 'var(--c-muted)' }}>· {Math.round(totalCarbonKg / 0.404).toLocaleString()} car miles</span>
+            </div>
+          )}
           <div className="checkout-total-row">
             <span style={{ fontSize: 13, color: 'var(--c-muted)' }}>
               {items.length} lot{items.length !== 1 ? 's' : ''}

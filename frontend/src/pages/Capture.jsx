@@ -487,6 +487,17 @@ export default function Capture() {
           </div>
         </div>
 
+        {summary.carbonKg > 0 && (
+          <div className="fx-listed-impact">
+            <span className="fx-listed-impact-label">This batch diverts</span>
+            <strong>{summary.weightKg.toFixed(2)} kg of fabric</strong>
+            <span className="fx-listed-impact-sep">·</span>
+            <strong className="fx-listed-impact-green">{summary.carbonKg.toFixed(1)} kg CO₂ prevented</strong>
+            <span className="fx-listed-impact-sep">·</span>
+            <span>{summary.carMiles.toLocaleString()} car miles avoided</span>
+          </div>
+        )}
+
         <div className="fx-listed-table">
           <div className="fx-listed-table-head">
             <h2>Created lots</h2>
@@ -828,10 +839,16 @@ function buildListingSummary(res) {
   const groups = res ? [...(res.groups || [])].sort(sortByBin) : []
   const pieces = groups.reduce((sum, group) => sum + (Number(group.piece_count) || 0), 0)
   const weightG = groups.reduce((sum, group) => sum + (Number(group.estimated_weight_g) || 0), 0)
+  const weightKg = weightG / 1000
+  const carbonKg = weightKg * 2.1
+  const carMiles = Math.round(carbonKg / 0.404)
 
   return {
     listings: groups.length,
     pieces,
+    weightKg,
+    carbonKg,
+    carMiles,
     weightLabel: weightG > 0 ? formatWeight(weightG) : 'Pending',
     rows: groups.map((group, i) => {
       const letter = group.sort_group_id || String.fromCharCode(65 + i)

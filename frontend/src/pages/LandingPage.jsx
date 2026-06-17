@@ -1,7 +1,9 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
 import { ReweaveLogo } from '../components/ReweaveMark.jsx'
+import { getAdminMetrics } from '../api.js'
+import { formatWeightKg, formatImpactMass } from '../utils/formatters.js'
 
 const PORTAL_HOME = { factory: '/factory', admin: '/admin', buyer: '/buyer' }
 
@@ -203,7 +205,14 @@ export default function LandingPage() {
   const [loading, setLoading]   = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
   const [activeStep, setActiveStep] = useState(0)
+  const [liveMetrics, setLiveMetrics] = useState(null)
   const touchStartX = useRef(null)
+
+  useEffect(() => {
+    getAdminMetrics()
+      .then(data => { if (data.total_lots > 0) setLiveMetrics(data) })
+      .catch(() => {})
+  }, [])
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -337,6 +346,35 @@ export default function LandingPage() {
 
         </div>
       </section>
+
+      {/* ── Live impact strip (only when real data exists) ── */}
+      {liveMetrics && (
+        <section className="lp-live-strip">
+          <div className="landing-inner">
+            <div className="lp-live-inner">
+              <span className="lp-live-badge">Live · Carter's pilot</span>
+              <div className="lp-live-metrics">
+                <div className="lp-live-metric">
+                  <strong>{formatWeightKg(liveMetrics.total_weight_kg)}</strong>
+                  <span>fabric diverted</span>
+                </div>
+                <div className="lp-live-metric">
+                  <strong>{formatImpactMass(liveMetrics.total_carbon_saved_kg)}</strong>
+                  <span>CO₂ prevented</span>
+                </div>
+                <div className="lp-live-metric">
+                  <strong>{liveMetrics.total_lots}</strong>
+                  <span>lots on platform</span>
+                </div>
+                <div className="lp-live-metric">
+                  <strong>{liveMetrics.claim_rate_pct}%</strong>
+                  <span>claim rate</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* ── Stats bar ── */}
       <section className="landing-stats-bar">

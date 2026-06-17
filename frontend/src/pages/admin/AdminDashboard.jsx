@@ -177,7 +177,7 @@ export default function AdminDashboard() {
         </div>
       </section>
 
-      <section className="admin-section admin-analytics">
+      {hasData && <section className="admin-section admin-analytics">
         <SectionTitle eyebrow="Operational analytics" title="Inventory Movement Signals" />
         <div className="admin-chart-grid">
           <ChartCard title="Fabric mix by weight">
@@ -228,7 +228,7 @@ export default function AdminDashboard() {
             </div>
           </ChartCard>
         </div>
-      </section>
+      </section>}
     </div>
   )
 }
@@ -360,11 +360,16 @@ function ChartCard({ title, children }) {
 function EmptyDemoState() {
   return (
     <section className="admin-empty-state">
+      <IconScan />
       <div>
-        <strong>Ready for a clean demo restart.</strong>
-        <span>After the first table photo, this page will fill with scan evidence, lot controls, impact metrics, and charts.</span>
+        <strong>No scans yet — ready for a live demo.</strong>
+        <span>
+          Head to the factory portal, photograph a fabric table, and this dashboard will fill
+          with scan evidence, lot controls, CO₂ impact, and buyer analytics within seconds.
+          One photo is all it takes to show Carter's pilot in action.
+        </span>
       </div>
-      <Link to="/factory">Start scan</Link>
+      <Link to="/factory" className="admin-empty-cta">Run first scan →</Link>
     </section>
   )
 }
