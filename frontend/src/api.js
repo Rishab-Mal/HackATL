@@ -29,6 +29,13 @@ export function detectScrap(file, options = {}) {
   return request('/vision/detect', { method: 'POST', body: formData })
 }
 
+// Fire-and-forget: boot the Replicate SAM container ahead of the first real scan
+// so the worker (especially on a phone) never pays the cold-start delay. Safe to
+// call repeatedly; the backend returns immediately and warms in the background.
+export function warmupVision() {
+  return request('/vision/warmup', { method: 'POST' }).catch(() => {})
+}
+
 // ---------------------------------------------------------------------------
 // Auth / current user
 // ---------------------------------------------------------------------------
