@@ -1,5 +1,10 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { decodeToDrawable, cropToJpegFile } from '../utils/imagePrep.js'
+import {
+  decodeToDrawable,
+  cropToJpegFile,
+  isBackendReadableImage,
+  prepareWholePhotoForVision,
+} from '../utils/imagePrep.js'
 
 // Touch-friendly crop step shown right after a photo is taken on the factory
 // page. The worker drags a box around just the fabrics + the ArUco marker; on
@@ -167,7 +172,7 @@ export default function ImageCropper({ file, onConfirm, onCancel }) {
   }
 
   async function confirm(useWhole = false) {
-    if (busy || !drawableRef.current) return
+    if (busy) return
     const { w: sw, h: sh } = srcRef.current
     let rect
     if (useWhole || !box || !display) {
@@ -178,12 +183,24 @@ export default function ImageCropper({ file, onConfirm, onCancel }) {
     }
     setBusy(true)
     try {
-      const cropped = await cropToJpegFile(drawableRef.current, rect, { name: 'scan.jpg' })
-      onConfirm(cropped)
+      if (useWhole) {
+        const fullPhoto = await prepareWholePhotoForVision(file)
+        onConfirm(fullPhoto, { wasCropped: false, source: 'whole-photo' })
+        return
+      }
+      if (!drawableRef.current) return
+      const cropped = await cropToJpegFile(drawableRef.current, rect, { name: 'scan-crop.jpg' })
+      onConfirm(cropped, { wasCropped: true, source: 'crop' })
     } catch {
       setBusy(false)
       setStatus('error')
     }
+  }
+
+  function useOriginalFile() {
+    if (busy || !isBackendReadableImage(file)) return
+    setBusy(true)
+    onConfirm(file, { wasCropped: false, source: 'original-file' })
   }
 
   return (
@@ -200,7 +217,15 @@ export default function ImageCropper({ file, onConfirm, onCancel }) {
       <div className="fx-crop-frame" ref={wrapRef}>
         {status === 'loading' && <div className="fx-crop-status">Loading photo…</div>}
         {status === 'error' && (
-          <div className="fx-crop-status">Could not read that photo. Take it again.</div>
+          <div className="fx-crop-status">
+            <strong>Could not preview that photo.</strong>
+            <span>Try the full-resolution original, or retake if the camera saved an unsupported format.</span>
+            {isBackendReadableImage(file) && (
+              <button type="button" className="fx-btn-text" onClick={useOriginalFile} disabled={busy}>
+                Use original photo
+              </button>
+            )}
+          </div>
         )}
         {status === 'ready' && display && (
           <div className="fx-crop-stage" style={{ width: display.w, height: display.h }}>

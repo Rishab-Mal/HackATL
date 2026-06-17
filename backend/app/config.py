@@ -43,6 +43,6 @@ class Settings:
         self.openrouter_vision_models = [m.strip() for m in models.split(",") if m.strip()]
         self.aruco_marker_size_cm = float(os.getenv("ARUCO_MARKER_SIZE_CM", "5.0"))
         self.aruco_marker_id = int(os.getenv("ARUCO_MARKER_ID", "23"))
-        self.max_image_dimension = int(os.getenv("VISION_MAX_IMAGE_DIMENSION", "1200"))
+        self.max_image_dimension = int(os.getenv("VISION_MAX_IMAGE_DIMENSION", "1600"))
         self.max_pieces = int(os.getenv("VISION_MAX_PIECES", "35"))
         self.openrouter_timeout_s = int(os.getenv("OPENROUTER_TIMEOUT_S", "60"))

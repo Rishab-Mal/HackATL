@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { createLot, createScanRun, detectScrap, resetDemoData, saveMyLocation } from '../api.js'
+import { createLot, createScanRun, detectScrap, resetDemoData, saveMyLocation, warmupVision } from '../api.js'
 import { useAuth } from '../context/AuthContext.jsx'
 import { ReweaveLogo } from '../components/ReweaveMark.jsx'
 import DestinationAnalysis from '../components/DestinationAnalysis.jsx'
 import ImageCropper from '../components/ImageCropper.jsx'
+import { prepareWholePhotoForVision } from '../utils/imagePrep.js'
 
 // Factory worker scanning flow. Person 1 (vision) owns the /api/vision/detect
 // response shape this screen renders -- see backend/app/schemas.py:
@@ -21,7 +22,11 @@ const PIPELINE_STEPS = [
 const VISION_SERVER_PREF_KEY = 'reweave_use_continuous_vision_server'
 
 function savedContinuousServerPref() {
-  return localStorage.getItem(VISION_SERVER_PREF_KEY) === 'true'
+  // Default ON: the always-warm Replicate deployment returns in a few seconds.
+  // Leaving it off sends phones down the public model's 60-90s cold start, which
+  // is the slow, flaky path that surfaces as "error, please try again".
+  const stored = localStorage.getItem(VISION_SERVER_PREF_KEY)
+  return stored === null ? true : stored === 'true'
 }
 
 export default function Capture() {
@@ -44,6 +49,12 @@ export default function Capture() {
   // Where this factory station is. Captured once from the browser so every lot
   // scanned here is pinned to the worker's real location on the buyer map.
   const originRef = useRef(null)
+
+  // Boot the SAM container as soon as the worker lands on the factory page so the
+  // first scan hits a warm model instead of a cold start.
+  useEffect(() => {
+    warmupVision()
+  }, [])
 
   useEffect(() => {
     if (!navigator.geolocation) return
@@ -85,8 +96,10 @@ export default function Capture() {
     setStage('crop')
   }
 
-  // Run the existing vision pipeline on the cropped JPEG the worker confirmed.
-  function runDetect(file) {
+  // Run the existing vision pipeline on the photo the worker confirmed. If a
+  // crop fails on mobile, retry once with the full-resolution original before
+  // asking the worker to retake it.
+  async function runDetect(file, meta = {}) {
     if (!file) return
     autoSavedRef.current = false
     setError(null)
@@ -98,16 +111,30 @@ export default function Capture() {
     setPreviewUrl(URL.createObjectURL(file))
     setStage('processing')
 
-    detectScrap(file, { useDeployment: useContinuousServer })
-      .then((res) => {
-        setResult(res)
-        autoSaveLots(res)
-        setStage('plan')
-      })
-      .catch((err) => {
-        setError(friendlyError(err))
-        setStage('error')
-      })
+    try {
+      const res = await detectScrap(file, { useDeployment: useContinuousServer })
+      setResult(res)
+      autoSaveLots(res)
+      setStage('plan')
+    } catch (err) {
+      if (meta.wasCropped && pickedFile) {
+        try {
+          const fullPhoto = await prepareWholePhotoForVision(pickedFile)
+          if (previewUrl) URL.revokeObjectURL(previewUrl)
+          setPreviewUrl(URL.createObjectURL(fullPhoto))
+          const res = await detectScrap(fullPhoto, { useDeployment: useContinuousServer })
+          setResult(res)
+          autoSaveLots(res)
+          setStage('plan')
+          return
+        } catch {
+          // Show the original crop error below; it is usually the most useful
+          // message for the worker.
+        }
+      }
+      setError(friendlyError(err))
+      setStage('error')
+    }
   }
 
   // Silently turn each detected color group into a marketplace lot. Invisible to

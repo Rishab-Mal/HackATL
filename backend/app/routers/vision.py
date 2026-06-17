@@ -1,10 +1,13 @@
 """Vision endpoints. Owned by Person 1 (computer vision and sorting)."""
 
+import logging
 from typing import Optional
 
 import cv2
 from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Query, Response, UploadFile
 from fastapi.responses import HTMLResponse
+
+logger = logging.getLogger("reweave.vision")
 
 from ..config import get_settings
 from ..schemas import DetectResponse
@@ -26,7 +29,24 @@ async def detect(image: UploadFile = File(...), use_deployment: bool = Form(defa
     try:
         return detect_pieces(contents, use_deployment=use_deployment)
     except ValueError as exc:
+        # Surface the real reason in the server log -- otherwise a phone just sees
+        # a generic "try again" and we have no idea which stage rejected the photo.
+        logger.warning(
+            "vision/detect rejected photo (%d bytes, content-type=%s, use_deployment=%s): %s",
+            len(contents),
+            image.content_type,
+            use_deployment,
+            exc,
+        )
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001 -- log then re-raise as a clean 500
+        logger.exception(
+            "vision/detect crashed (%d bytes, content-type=%s, use_deployment=%s)",
+            len(contents),
+            image.content_type,
+            use_deployment,
+        )
+        raise HTTPException(status_code=500, detail=f"Vision pipeline error: {exc}") from exc
 
 
 @router.post("/warmup")
