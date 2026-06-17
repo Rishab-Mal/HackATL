@@ -784,12 +784,6 @@ function CvSummary({ result }) {
 
   return (
     <div className="fx-cv-summary">
-      <div className="fx-cv-summary-head">
-        <span className="fx-cv-badge">Reweave Vision Engine</span>
-        {result.segmentation_method && (
-          <span className="fx-cv-method">{result.segmentation_method}</span>
-        )}
-      </div>
       <div className="fx-cv-stats">
         <div className="fx-cv-stat">
           <strong>{pieces.length}</strong>
