@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Area,
@@ -29,13 +29,11 @@ export default function AdminDashboard() {
   const [metrics, setMetrics] = useState(null)
   const [error, setError] = useState(null)
   const [acting, setActing] = useState({})
+  const [tab, setTab] = useState('pilot')
 
   function refresh() {
     getAdminMetrics()
-      .then((data) => {
-        setMetrics(data)
-        setError(null)
-      })
+      .then((data) => { setMetrics(data); setError(null) })
       .catch((err) => setError(err.message))
   }
 
@@ -60,15 +58,10 @@ export default function AdminDashboard() {
   if (error && !metrics) return <div className="error">{error}</div>
   if (!metrics) return <div className="dash-loading"><div className="dash-spinner" />Loading admin dashboard...</div>
 
-  const latestRun = metrics.recent_runs?.[0]
   const runHistory = metrics.run_history || []
   const fabricRows = metrics.fabric_stats || []
   const statusMix = (metrics.status_mix || []).filter((item) => item.value > 0)
   const hasData = metrics.has_data
-  const topActionLots = [...(metrics.quick_action_lots || [])]
-    .sort((a, b) => (b.current_price_usd || 0) - (a.current_price_usd || 0))
-    .slice(0, 5)
-  const hiddenActionCount = Math.max(0, (metrics.quick_action_lots || []).length - topActionLots.length)
 
   return (
     <div className="admin-command">
@@ -78,16 +71,24 @@ export default function AdminDashboard() {
         <div className="admin-hero-copy">
           <span className="admin-eyebrow">Reweave admin command center</span>
           <h1>Turn factory scans into inventory, impact, and action.</h1>
-          <p>
-            This dashboard is built for the hackathon demo flow: scan a few fabric pieces,
-            publish lots automatically, then show judges the evidence, business value, and
-            environmental impact within seconds.
-          </p>
+          <div className="admin-tab-bar">
+            <button
+              className={`admin-tab-btn${tab === 'pilot' ? ' is-active' : ''}`}
+              onClick={() => setTab('pilot')}
+            >
+              <span className="admin-tab-live" />
+              Pilot Demo
+            </button>
+            <button
+              className={`admin-tab-btn${tab === 'carters' ? ' is-active' : ''}`}
+              onClick={() => setTab('carters')}
+            >
+              Carter's Scale
+            </button>
+          </div>
         </div>
         <div className="admin-hero-panel">
-          <div className="admin-live-row">
-            Live database
-          </div>
+          <div className="admin-live-row">Live database</div>
           <div className="admin-hero-number">{metrics.total_lots}</div>
           <div className="admin-hero-label">lots in the system</div>
           <div className="admin-mini-grid">
@@ -98,140 +99,102 @@ export default function AdminDashboard() {
         </div>
       </section>
 
-      {!hasData && <EmptyDemoState />}
+      {tab === 'pilot' && (
+        <>
+          {!hasData && <EmptyDemoState />}
 
-      <section className="admin-kpi-grid" aria-label="Operational summary">
-        <Kpi label="Live Inventory Value" value={formatMoney(metrics.inventory_value)} note={`${metrics.available_lots} available lots`} />
-        <Kpi label="Material Diverted" value={formatWeightKg(metrics.total_weight_kg)} note={`${metrics.total_pieces} detected pieces`} />
-        <Kpi label="CO2 Prevented" value={formatWeightKg(metrics.total_carbon_saved_kg)} note={`${metrics.carbon_equiv_car_miles} driving miles avoided`} />
-        <Kpi label="Revenue Claimed" value={formatMoney(metrics.revenue)} note={`${metrics.claim_rate_pct}% sell-through`} />
-      </section>
+          <section className="admin-kpi-grid" aria-label="Impact summary">
+            <Kpi
+              label="CO₂ Prevented"
+              value={formatWeightKg(metrics.total_carbon_saved_kg)}
+              note={`= ${metrics.carbon_equiv_car_miles.toLocaleString()} miles not driven`}
+            />
+            <Kpi
+              label="Water Conserved"
+              value={formatWater(metrics.total_water_saved_l)}
+              note={`= ${metrics.water_equiv_showers.toLocaleString()} showers saved`}
+            />
+            <Kpi
+              label="Fabric from Landfill"
+              value={formatWeightKg(metrics.total_weight_kg)}
+              note={`${metrics.total_pieces} pieces kept in circulation`}
+            />
+            <Kpi
+              label="Revenue Unlocked"
+              value={formatMoney(metrics.revenue)}
+              note={`${metrics.claim_rate_pct}% sell-through rate`}
+            />
+          </section>
 
-      <section className="admin-section admin-runs-section">
-        <SectionTitle eyebrow="Latest scan" title="Run Summary" action={<Link to="/admin/lots">Open inventory</Link>} />
-        <div className="admin-run-layout">
-          <RunPreview run={latestRun} />
-          <div className="admin-run-list">
-            {(metrics.recent_runs || []).slice(0, 5).map((run) => (
-              <article className="admin-run-card" key={run.id || run.created_at}>
-                <div>
-                  <div className="admin-run-card-title">{run.label}</div>
-                  <div className="admin-run-card-meta">
-                    {run.group_count} lots · {run.piece_count} pieces · {formatWeightKg(run.total_weight_kg)}
+          {hasData && (
+            <section className="admin-section admin-pilot-charts">
+              <div className="admin-pilot-chart-grid">
+                <ChartCard title="Fabric diverted by material type">
+                  <ResponsiveContainer width="100%" height={190}>
+                    <BarChart data={fabricRows} margin={{ top: 6, right: 6, left: -18, bottom: 0 }}>
+                      <CartesianGrid stroke="#eeeeee" vertical={false} />
+                      <XAxis dataKey="fabric_type" tickLine={false} axisLine={false} fontSize={11} />
+                      <YAxis tickLine={false} axisLine={false} fontSize={11} tickFormatter={(v) => `${(v * 1000).toFixed(0)}g`} />
+                      <Tooltip formatter={(value) => formatWeightKg(Number(value))} labelStyle={{ color: '#111' }} />
+                      <Bar dataKey="weight_kg" radius={[4, 4, 0, 0]}>
+                        {fabricRows.map((_, i) => <Cell key={i} fill={FABRIC_COLORS[i % FABRIC_COLORS.length]} />)}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </ChartCard>
+
+                <ChartCard title="Lot status breakdown">
+                  <ResponsiveContainer width="100%" height={190}>
+                    <PieChart>
+                      <Pie data={statusMix} dataKey="value" nameKey="name" innerRadius={52} outerRadius={78} paddingAngle={3}>
+                        {statusMix.map((entry) => <Cell key={entry.name} fill={STATUS_COLORS[entry.name]} />)}
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="admin-status-legend">
+                    {statusMix.map((entry) => (
+                      <span key={entry.name}><i style={{ background: STATUS_COLORS[entry.name] }} />{entry.name}: {entry.value}</span>
+                    ))}
                   </div>
-                </div>
-                <div className="admin-run-card-value">{formatMoney(run.inventory_value)}</div>
-              </article>
-            ))}
-          </div>
-        </div>
-      </section>
+                </ChartCard>
 
-      <section className="admin-section">
-        <SectionTitle eyebrow="Admin controls" title="Highest-Value Inventory Actions" action={<Link to="/factory">Run new scan</Link>} />
-        <div className="admin-action-grid">
-          <div className="admin-action-panel">
-            <div className="admin-action-summary">
-              <strong>{topActionLots.length} priority lots</strong>
-              <span>Sorted by current value so this page stays focused during the judge walkthrough.</span>
-            </div>
-            {(metrics.recommended_actions || []).map((item) => (
-              <div className={`admin-action-note admin-action-note--${item.tone}`} key={item.title}>
-                <strong>{item.title}</strong>
-                <span>{item.detail}</span>
+                <ChartCard title="Weight per scan run">
+                  <ResponsiveContainer width="100%" height={190}>
+                    <AreaChart data={runHistory} margin={{ top: 6, right: 6, left: -18, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="runWeightTab" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#166534" stopOpacity={0.28} />
+                          <stop offset="95%" stopColor="#166534" stopOpacity={0.02} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid stroke="#eeeeee" vertical={false} />
+                      <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={11} />
+                      <YAxis tickLine={false} axisLine={false} fontSize={11} tickFormatter={(v) => `${v}g`} />
+                      <Tooltip formatter={(value) => [`${value} g`, 'Weight']} />
+                      <Area type="monotone" dataKey="weight_g" stroke="#166534" fill="url(#runWeightTab)" strokeWidth={2} dot={{ r: 3 }} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </ChartCard>
               </div>
-            ))}
+            </section>
+          )}
+
+          <div className="admin-equiv-band">
+            <EquivItem value={metrics.carbon_equiv_car_miles.toLocaleString()} label="car miles avoided" />
+            <EquivItem value={metrics.water_equiv_showers.toLocaleString()} label="showers worth of water saved" />
+            <EquivItem value={metrics.water_equiv_bottles.toLocaleString()} label="water bottles conserved" />
+            <EquivItem value={metrics.carbon_equiv_phones.toLocaleString()} label="phone charges of CO₂ prevented" />
           </div>
-          <div className="admin-lot-actions">
-            {topActionLots.map((lot) => (
-              <LotActionRow
-                key={lot.id}
-                lot={lot}
-                acting={acting}
-                onAction={runLotAction}
-              />
-            ))}
-            {topActionLots.length === 0 && (
-              <div className="admin-empty-panel">Scan a table to create actionable lots here.</div>
-            )}
-            {hiddenActionCount > 0 && (
-              <Link className="admin-more-actions" to="/admin/lots">
-                Review {hiddenActionCount} more lots in full inventory
-              </Link>
-            )}
-          </div>
-        </div>
-      </section>
+        </>
+      )}
 
-      <section className="admin-impact-band">
-        <div>
-          <span className="admin-eyebrow">Impact preview</span>
-          <h2>Environmental gains from the current inventory</h2>
-          <p>Scaled for scrap-level operations, so small batches and larger runs stay easy to compare.</p>
-          <Link className="admin-impact-link" to="/admin/impact">Open impact report</Link>
-        </div>
-        <div className="admin-impact-metrics">
-          <ImpactMetric label="Water saved" value={formatWater(metrics.total_water_saved_l)} detail={`${metrics.water_equiv_showers} showers`} />
-          <ImpactMetric label="Energy avoided" value={`${formatCompact(metrics.energy_saved_kwh)} kWh`} detail={`${metrics.water_equiv_bottles.toLocaleString()} bottles of water`} />
-          <ImpactMetric label="Diversion target" value={`${metrics.diversion_pct}%`} detail={`${formatWeightKg(metrics.diversion_target_kg)} pilot goal`} />
-        </div>
-      </section>
-
-      {hasData && <section className="admin-section admin-analytics">
-        <SectionTitle eyebrow="Operational analytics" title="Inventory Movement Signals" />
-        <div className="admin-chart-grid">
-          <ChartCard title="Fabric mix by weight">
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={fabricRows} margin={{ top: 10, right: 6, left: -18, bottom: 0 }}>
-                <CartesianGrid stroke="#eeeeee" vertical={false} />
-                <XAxis dataKey="fabric_type" tickLine={false} axisLine={false} fontSize={11} />
-                <YAxis tickLine={false} axisLine={false} fontSize={11} tickFormatter={(v) => `${v * 1000}g`} />
-                <Tooltip formatter={(value) => formatWeightKg(Number(value))} labelStyle={{ color: '#111' }} />
-                <Bar dataKey="weight_kg" radius={[4, 4, 0, 0]}>
-                  {fabricRows.map((_, i) => <Cell key={i} fill={FABRIC_COLORS[i % FABRIC_COLORS.length]} />)}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </ChartCard>
-
-          <ChartCard title="Run ramp">
-            <ResponsiveContainer width="100%" height={220}>
-              <AreaChart data={runHistory} margin={{ top: 10, right: 6, left: -18, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="runWeight" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#166534" stopOpacity={0.28} />
-                    <stop offset="95%" stopColor="#166534" stopOpacity={0.02} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid stroke="#eeeeee" vertical={false} />
-                <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={11} />
-                <YAxis tickLine={false} axisLine={false} fontSize={11} tickFormatter={(v) => `${v}g`} />
-                <Tooltip formatter={(value, name) => [name === 'weight_g' ? `${value} g` : value, name === 'weight_g' ? 'Weight' : name]} />
-                <Area type="monotone" dataKey="weight_g" stroke="#166534" fill="url(#runWeight)" strokeWidth={2} dot={{ r: 3 }} />
-              </AreaChart>
-            </ResponsiveContainer>
-          </ChartCard>
-
-          <ChartCard title="Inventory status">
-            <ResponsiveContainer width="100%" height={220}>
-              <PieChart>
-                <Pie data={statusMix} dataKey="value" nameKey="name" innerRadius={58} outerRadius={82} paddingAngle={3}>
-                  {statusMix.map((entry) => <Cell key={entry.name} fill={STATUS_COLORS[entry.name]} />)}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-            <div className="admin-status-legend">
-              {statusMix.map((entry) => (
-                <span key={entry.name}><i style={{ background: STATUS_COLORS[entry.name] }} />{entry.name}: {entry.value}</span>
-              ))}
-            </div>
-          </ChartCard>
-        </div>
-      </section>}
+      {tab === 'carters' && <CartersTab metrics={metrics} />}
     </div>
   )
 }
+
+// ── Shared helpers ────────────────────────────────────────────────────────────
 
 function Kpi({ label, value, note }) {
   return (
@@ -243,111 +206,6 @@ function Kpi({ label, value, note }) {
   )
 }
 
-function SectionTitle({ eyebrow, title, action }) {
-  return (
-    <div className="admin-section-title">
-      <div>
-        <span className="admin-eyebrow">{eyebrow}</span>
-        <h2>{title}</h2>
-      </div>
-      {action && <div className="admin-section-action">{action}</div>}
-    </div>
-  )
-}
-
-function RunPreview({ run }) {
-  const lots = run?.lots || []
-  const groups = run?.summary_groups || []
-  return (
-    <article className="admin-run-preview">
-      <div className="admin-run-image">
-        {run?.annotated_image_data_url ? (
-          <img src={run.annotated_image_data_url} alt="Latest segmented scan" />
-        ) : (
-          <div className="admin-run-placeholder">
-            <IconScan />
-            <span>Segmented scan image appears after the next factory photo.</span>
-          </div>
-        )}
-      </div>
-      <div className="admin-run-detail">
-        <div className="admin-run-detail-head">
-          <div>
-            <span className="admin-eyebrow">{run?.label || 'No scan yet'}</span>
-            <h3>{run ? `${run.group_count} sorted lots created` : 'Waiting for first run'}</h3>
-          </div>
-          <span className="admin-confidence">{run?.scale_confidence || 'ready'}</span>
-        </div>
-        <div className="admin-run-stats">
-          <span><strong>{run?.piece_count || 0}</strong> pieces</span>
-          <span><strong>{formatWeightKg(run?.total_weight_kg || 0)}</strong> weight</span>
-          <span><strong>{formatMoney(run?.inventory_value || 0)}</strong> value</span>
-          <span><strong>{formatWater(run?.water_saved_l || 0)}</strong> water</span>
-        </div>
-        <div className="admin-run-lots">
-          {lots.length > 0 ? lots.map((lot) => <LotPill lot={lot} key={lot.id} />) : groups.slice(0, 8).map((group) => (
-            <span className="admin-lot-pill" key={group.key}>
-              <i style={{ background: group.color_hex }} />
-              {group.fabric_type} · {Math.round(group.weight_g || 0)}g
-            </span>
-          ))}
-          {!lots.length && !groups.length && <span className="admin-muted">No run data yet.</span>}
-        </div>
-      </div>
-    </article>
-  )
-}
-
-function LotPill({ lot }) {
-  return (
-    <span className="admin-lot-pill">
-      <i style={{ background: lot.color_hex }} />
-      {lot.fabric_type} · {formatWeightKg(lot.weight_kg)}
-    </span>
-  )
-}
-
-function LotActionRow({ lot, acting, onAction }) {
-  const publishKey = `${lot.status === 'unlisted' ? 'relist' : 'delist'}-${lot.id}`
-  const deleteKey = `delete-${lot.id}`
-  return (
-    <article className="admin-lot-action-row">
-      <div className="admin-lot-thumb" style={{ background: lot.color_hex }}>
-        {lot.thumbnail && <img src={lot.thumbnail} alt="" />}
-      </div>
-      <div className="admin-lot-action-main">
-        <strong>{lot.name}</strong>
-        <span>{lot.fabric_type} · {formatWeightKg(lot.weight_kg)} · {formatUnitPrice(lot.weight_kg > 0 ? lot.current_price_usd / lot.weight_kg : 0)}</span>
-      </div>
-      <span className={`admin-status admin-status--${lot.status}`}>{lot.status}</span>
-      <div className="admin-row-buttons">
-        {lot.status === 'unlisted' ? (
-          <button type="button" onClick={() => onAction(lot, 'relist')} disabled={acting[publishKey]}>
-            Publish
-          </button>
-        ) : lot.status === 'available' ? (
-          <button type="button" className="btn-ghost" onClick={() => onAction(lot, 'delist')} disabled={acting[publishKey]}>
-            Delist
-          </button>
-        ) : null}
-        <button type="button" className="btn-ghost admin-danger-btn" onClick={() => onAction(lot, 'delete')} disabled={acting[deleteKey]}>
-          Delete
-        </button>
-      </div>
-    </article>
-  )
-}
-
-function ImpactMetric({ label, value, detail }) {
-  return (
-    <div className="admin-impact-metric">
-      <span>{label}</span>
-      <strong>{value}</strong>
-      <small>{detail}</small>
-    </div>
-  )
-}
-
 function ChartCard({ title, children }) {
   return (
     <article className="admin-chart-card">
@@ -356,6 +214,116 @@ function ChartCard({ title, children }) {
     </article>
   )
 }
+
+function EquivItem({ value, label }) {
+  return (
+    <div className="admin-equiv-item">
+      <strong>{value}</strong>
+      <span>{label}</span>
+    </div>
+  )
+}
+
+// ── Carter's Scale tab ────────────────────────────────────────────────────────
+
+function CartersKpi({ label, value, note }) {
+  return (
+    <div className="admin-carters-kpi">
+      <span>{label}</span>
+      <strong>{value}</strong>
+      <small>{note}</small>
+    </div>
+  )
+}
+
+function CartersTab({ metrics }) {
+  const revM = parseFloat(((metrics.revenue || 0) / 1_000_000).toFixed(4))
+  const revenueData = [
+    { name: 'Demo (Live)', value: revM },
+    { name: 'Yr 1 · 5 fac.', value: 1.2 },
+    { name: 'Yr 2 · 25 fac.', value: 5.5 },
+    { name: 'Yr 3 · 50 fac.', value: 9.0 },
+  ]
+
+  return (
+    <div className="admin-carters-tab">
+      <div className="admin-carters-note">
+        Projection: 50 Carter's facilities × 5,000 kg scrap/month × 12 months = <strong>3,000 tonnes diverted/year</strong>.
+        Same platform. Same CV pipeline. Same buyer network.
+      </div>
+
+      <div className="admin-carters-kpi-grid">
+        <CartersKpi label="CO₂ Prevented" value="6,300 t" note="= removing 1,360 cars from the road for a year" />
+        <CartersKpi label="Water Conserved" value="8.1B L" note="= 124 million showers saved" />
+        <CartersKpi label="Fabric from Landfill" value="3,000 t" note="= 6.6M lbs kept in circulation" />
+        <CartersKpi label="Revenue Unlocked" value="$9M" note="at $3 / kg average lot price" />
+      </div>
+
+      <div className="admin-carters-body">
+        <div className="admin-carters-chart-card">
+          <h3>Revenue ramp — projected rollout</h3>
+          <ResponsiveContainer width="100%" height={210}>
+            <AreaChart data={revenueData} margin={{ top: 6, right: 20, left: 0, bottom: 0 }}>
+              <defs>
+                <linearGradient id="revenueGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#4ade80" stopOpacity={0.25} />
+                  <stop offset="95%" stopColor="#4ade80" stopOpacity={0.02} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid stroke="#1a3324" vertical={false} />
+              <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={11} tick={{ fill: '#86efac' }} />
+              <YAxis tickLine={false} axisLine={false} fontSize={11} tick={{ fill: '#86efac' }} tickFormatter={(v) => `$${v}M`} />
+              <Tooltip
+                formatter={(v) => [`$${v}M`, 'Revenue']}
+                contentStyle={{ background: '#052e16', border: '1px solid #166534', color: '#86efac', fontSize: 12 }}
+              />
+              <Area
+                type="monotone"
+                dataKey="value"
+                stroke="#4ade80"
+                fill="url(#revenueGrad)"
+                strokeWidth={2.5}
+                dot={{ r: 4, fill: '#4ade80', stroke: '#052e16', strokeWidth: 2 }}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className="admin-carters-scale-card">
+          <h3>Upscaling logic</h3>
+          <div className="admin-scale-chain">
+            <div className="admin-scale-step">
+              <strong>Pilot</strong>
+              <span>{formatWeightKg(metrics.total_weight_kg)} scanned</span>
+            </div>
+            <div className="admin-scale-arrow">→</div>
+            <div className="admin-scale-step">
+              <strong>×1,316</strong>
+              <span>one facility / yr</span>
+            </div>
+            <div className="admin-scale-arrow">→</div>
+            <div className="admin-scale-step">
+              <strong>×50 fac.</strong>
+              <span>Carter's network</span>
+            </div>
+            <div className="admin-scale-arrow">→</div>
+            <div className="admin-scale-step admin-scale-step--end">
+              <strong>3,000 t</strong>
+              <span>diverted / year</span>
+            </div>
+          </div>
+          <div className="admin-scale-summary">
+            <span>6,300 t CO₂ prevented</span>
+            <span>$9M revenue unlocked</span>
+            <span>8.1B L water saved</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Empty state ───────────────────────────────────────────────────────────────
 
 function EmptyDemoState() {
   return (
@@ -388,16 +356,35 @@ function IconScan() {
   )
 }
 
+function LotActionRow({ lot, acting, onAction }) {
+  const publishKey = `${lot.status === 'unlisted' ? 'relist' : 'delist'}-${lot.id}`
+  const deleteKey = `delete-${lot.id}`
+  return (
+    <article className="admin-lot-action-row">
+      <div className="admin-lot-thumb" style={{ background: lot.color_hex }}>
+        {lot.thumbnail && <img src={lot.thumbnail} alt="" />}
+      </div>
+      <div className="admin-lot-action-main">
+        <strong>{lot.name}</strong>
+        <span>{lot.fabric_type} · {formatWeightKg(lot.weight_kg)} · {formatUnitPrice(lot.weight_kg > 0 ? lot.current_price_usd / lot.weight_kg : 0)}</span>
+      </div>
+      <span className={`admin-status admin-status--${lot.status}`}>{lot.status}</span>
+      <div className="admin-row-buttons">
+        {lot.status === 'unlisted' ? (
+          <button type="button" onClick={() => onAction(lot, 'relist')} disabled={acting[publishKey]}>Publish</button>
+        ) : lot.status === 'available' ? (
+          <button type="button" className="btn-ghost" onClick={() => onAction(lot, 'delist')} disabled={acting[publishKey]}>Delist</button>
+        ) : null}
+        <button type="button" className="btn-ghost admin-danger-btn" onClick={() => onAction(lot, 'delete')} disabled={acting[deleteKey]}>Delete</button>
+      </div>
+    </article>
+  )
+}
+
 function formatWater(value) {
   const liters = Number(value) || 0
   if (liters <= 0) return '0 L'
   if (liters < 10) return `${liters.toFixed(1)} L`
   if (liters < 1000) return `${Math.round(liters).toLocaleString()} L`
   return `${(liters / 1000).toFixed(liters >= 10000 ? 0 : 1)} kL`
-}
-
-function formatCompact(value) {
-  const number = Number(value) || 0
-  if (number < 10) return number.toFixed(2).replace(/\.?0+$/, '')
-  return Math.round(number).toLocaleString()
 }
