@@ -1,0 +1,24 @@
+{
+  "sensor": {
+    "present": true,
+    "r": 0,
+    "g": 0,
+    "b": 0,
+    "clear": 0,
+    "proximity": 0
+  },
+  "ir_hint": {
+    "available": true,
+    "guess": "natural",
+    "confidence": 0.28,
+    "reflectance": 0.0,
+    "chroma": 0.0,
+    "raw": {
+      "proximity": 0,
+      "clear": 1,
+      "r": 0,
+      "g": 0,
+      "b": 0
+    }
+  }
+}
